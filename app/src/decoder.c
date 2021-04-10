@@ -6,6 +6,9 @@
 #include "video_buffer.h"
 #include "util/log.h"
 
+/** Downcast packet_sink to decoder */
+#define DOWNCAST(SINK) container_of(SINK, struct decoder, packet_sink)
+
 bool
 decoder_open(struct decoder *decoder, const AVCodec *codec) {
     decoder->codec_ctx = avcodec_alloc_context3(codec);
@@ -40,6 +43,12 @@ decoder_close(struct decoder *decoder) {
 
 bool
 decoder_push(struct decoder *decoder, const AVPacket *packet) {
+    bool is_config = packet->pts == AV_NOPTS_VALUE;
+    if (is_config) {
+        // nothing to do
+        return true;
+    }
+
     int ret;
     if ((ret = avcodec_send_packet(decoder->codec_ctx, packet)) < 0) {
         LOGE("Could not send video packet: %d", ret);
@@ -59,7 +68,33 @@ decoder_push(struct decoder *decoder, const AVPacket *packet) {
     return true;
 }
 
+static bool
+decoder_packet_sink_open(struct sc_packet_sink *sink, const AVCodec *codec) {
+    struct decoder *decoder = DOWNCAST(sink);
+    return decoder_open(decoder, codec);
+}
+
+static void
+decoder_packet_sink_close(struct sc_packet_sink *sink) {
+    struct decoder *decoder = DOWNCAST(sink);
+    decoder_close(decoder);
+}
+
+static bool
+decoder_packet_sink_push(struct sc_packet_sink *sink, const AVPacket *packet) {
+    struct decoder *decoder = DOWNCAST(sink);
+    return decoder_push(decoder, packet);
+}
+
 void
 decoder_init(struct decoder *decoder, struct video_buffer *vb) {
     decoder->video_buffer = vb;
+
+    static const struct sc_packet_sink_ops ops = {
+        .open = decoder_packet_sink_open,
+        .close = decoder_packet_sink_close,
+        .push = decoder_packet_sink_push,
+    };
+
+    decoder->packet_sink.ops = &ops;
 }
