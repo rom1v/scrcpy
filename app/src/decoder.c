@@ -41,7 +41,7 @@ decoder_close(struct decoder *decoder) {
     avcodec_free_context(&decoder->codec_ctx);
 }
 
-bool
+static bool
 decoder_push(struct decoder *decoder, const AVPacket *packet) {
     bool is_config = packet->pts == AV_NOPTS_VALUE;
     if (is_config) {
