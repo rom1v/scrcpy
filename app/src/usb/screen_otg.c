@@ -16,7 +16,7 @@ sc_screen_otg_set_mouse_capture(struct sc_screen_otg *screen, bool capture) {
         SDL_GetWindowPosition(screen->window, &x, &y);
         SDL_GetWindowSize(screen->window, &w, &h);
 
-        bool outside_window = mouse_x < x || mouse_y >= x + w
+        bool outside_window = mouse_x < x || mouse_x >= x + w
                            || mouse_y < y || mouse_y >= y + h;
         if (outside_window) {
             SDL_WarpMouseInWindow(screen->window, w / 2, h / 2);
