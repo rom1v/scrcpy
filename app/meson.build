@@ -202,7 +202,7 @@ conf.set('HAVE_USB', usb_support)
 
 configure_file(configuration: conf, output: 'config.h')
 
-src_dir = include_directories('src')
+src_dir = include_directories('src', '/opt/homebrew/include')
 
 executable('scrcpy', src,
            dependencies: dependencies,
