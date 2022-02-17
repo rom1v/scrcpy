@@ -737,7 +737,7 @@ sc_screen_update_frame(struct sc_screen *screen) {
         // this is the very first frame, show the window
         sc_screen_show_initial_window(screen);
 
-        if (false && sc_screen_is_relative_mode(screen)) {
+        if (sc_screen_is_relative_mode(screen)) {
             // Capture mouse on start
             sc_screen_set_mouse_capture(screen, true);
         }

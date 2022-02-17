@@ -107,7 +107,7 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         LOGW("Could not load icon");
     }
 
-    if (false && screen->mouse) {
+    if (screen->mouse) {
         // Capture mouse on start
         sc_screen_otg_set_mouse_capture(screen, true);
     }
