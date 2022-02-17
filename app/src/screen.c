@@ -164,7 +164,6 @@ sc_screen_is_relative_mode(struct sc_screen *screen) {
 
 static void
 sc_screen_set_mouse_capture(struct sc_screen *screen, bool capture) {
-#ifdef __APPLE__
     // Workaround for SDL bug on macOS:
     // <https://github.com/libsdl-org/SDL/issues/5340>
     if (capture) {
@@ -181,9 +180,6 @@ sc_screen_set_mouse_capture(struct sc_screen *screen, bool capture) {
             SDL_WarpMouseInWindow(screen->window, w / 2, h / 2);
         }
     }
-#else
-    (void) screen;
-#endif
     if (SDL_SetRelativeMouseMode(capture)) {
         LOGE("Could not set relative mouse mode to %s: %s",
              capture ? "true" : "false", SDL_GetError());
