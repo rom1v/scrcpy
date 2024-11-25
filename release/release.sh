@@ -15,9 +15,9 @@ rm -rf output
 ./build_linux.sh
 
 ./package_server.sh
-./package_client.sh win32 zip
-./package_client.sh win64 zip
-./package_client.sh linux tar.gz
+./package_client.sh win32 win32 zip
+./package_client.sh win64 win64 zip
+./package_client.sh linux linux-x86_64 tar.gz
 
 ./generate_checksums.sh
 

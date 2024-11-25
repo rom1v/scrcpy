@@ -4,15 +4,16 @@ cd "$(dirname ${BASH_SOURCE[0]})"
 . build_common
 cd .. # root project dir
 
-if [[ $# != 2 ]]
+if [[ $# != 3 ]]
 then
-    # <target_name>: for example win64
+    # <target>: linux, win32, win64 or macos
+    # <name>: target name for the archive (for example linux-x86_64)
     # <format>: zip or tar.gz
-    echo "Syntax: $0 <target> <format>" >&2
+    echo "Syntax: $0 <target> <name> <format>" >&2
     exit 1
 fi
 
-FORMAT=$2
+FORMAT="$3"
 
 if [[ "$FORMAT" != zip && "$FORMAT" != tar.gz ]]
 then
@@ -22,7 +23,7 @@ fi
 
 BUILD_DIR="$WORK_DIR/build-$1"
 ARCHIVE_DIR="$BUILD_DIR/release-archive"
-TARGET_DIRNAME="scrcpy-$1-$VERSION"
+TARGET_DIRNAME="scrcpy-$2-$VERSION"
 
 rm -rf "$ARCHIVE_DIR/$TARGET_DIRNAME"
 mkdir -p "$ARCHIVE_DIR/$TARGET_DIRNAME"
