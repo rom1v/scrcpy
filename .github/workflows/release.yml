@@ -83,7 +83,7 @@ jobs:
       - name: Test
         run: release/test_client.sh
 
-  build-linux:
+  build-linux-x86_64:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -182,7 +182,7 @@ jobs:
           name: build-win64-intermediate
           path: release/work/build-win64/dist-tar/
 
-  build-macos:
+  build-macos-aarch64:
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -210,10 +210,10 @@ jobs:
           name: build-macos-intermediate
           path: release/work/build-macos/dist-tar/
 
-  package-linux:
+  package-linux-x86_64:
     needs:
       - build-scrcpy-server
-      - build-linux
+      - build-linux-x86_64
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -243,7 +243,7 @@ jobs:
       - name: Upload release
         uses: actions/upload-artifact@v4
         with:
-          name: release-linux
+          name: release-linux-x86_64
           path: release/output/
 
   package-win32:
@@ -318,10 +318,10 @@ jobs:
           name: release-win64
           path: release/output
 
-  package-macos:
+  package-macos-aarch64:
     needs:
       - build-scrcpy-server
-      - build-macos
+      - build-macos-aarch64
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -351,16 +351,16 @@ jobs:
       - name: Upload release
         uses: actions/upload-artifact@v4
         with:
-          name: release-macos
+          name: release-macos-aarch64
           path: release/output/
 
   release:
     needs:
       - build-scrcpy-server
-      - package-linux
+      - package-linux-x86_64
       - package-win32
       - package-win64
-      - package-macos
+      - package-macos-aarch64
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -372,10 +372,10 @@ jobs:
           name: scrcpy-server
           path: release/work/build-server/server/
 
-      - name: Download release-linux
+      - name: Download release-linux-x86_64
         uses: actions/download-artifact@v4
         with:
-          name: release-linux
+          name: release-linux-x86_64
           path: release/output/
 
       - name: Download release-win32
@@ -390,10 +390,10 @@ jobs:
           name: release-win64
           path: release/output/
 
-      - name: Download release-macos
+      - name: Download release-macos-aarch64
         uses: actions/download-artifact@v4
         with:
-          name: release-macos
+          name: release-macos-aarch64
           path: release/output/
 
       - name: Package server
