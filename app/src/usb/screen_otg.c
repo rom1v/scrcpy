@@ -171,8 +171,6 @@ sc_screen_otg_process_mouse_wheel(struct sc_screen_otg *screen,
         .hscroll = event->x,
         .vscroll = event->y,
 #endif
-        .hscroll_int = event->x,
-        .vscroll_int = event->y,
         .buttons_state = sc_mouse_buttons_state_from_sdl(sdl_buttons_state),
     };
 
