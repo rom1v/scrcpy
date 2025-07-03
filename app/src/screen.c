@@ -619,28 +619,6 @@ sc_screen_init_size(struct sc_screen *screen) {
     return res != SC_DISPLAY_RESULT_ERROR;
 }
 
-// recreate the texture and resize the window if the frame size has changed
-static enum sc_display_result
-prepare_for_frame(struct sc_screen *screen, struct sc_size new_frame_size) {
-    assert(screen->video);
-
-    if (screen->frame_size.width == new_frame_size.width
-            && screen->frame_size.height == new_frame_size.height) {
-        return SC_DISPLAY_RESULT_OK;
-    }
-
-    // frame dimension changed
-    screen->frame_size = new_frame_size;
-
-    struct sc_size new_content_size =
-        get_oriented_size(new_frame_size, screen->orientation);
-    set_content_size(screen, new_content_size);
-
-    sc_screen_update_content_rect(screen);
-
-    return sc_display_set_texture_size(&screen->display, screen->frame_size);
-}
-
 static bool
 sc_screen_apply_frame(struct sc_screen *screen) {
     assert(screen->video);
@@ -649,16 +627,31 @@ sc_screen_apply_frame(struct sc_screen *screen) {
 
     AVFrame *frame = screen->frame;
     struct sc_size new_frame_size = {frame->width, frame->height};
-    enum sc_display_result res = prepare_for_frame(screen, new_frame_size);
-    if (res == SC_DISPLAY_RESULT_ERROR) {
-        return false;
-    }
-    if (res == SC_DISPLAY_RESULT_PENDING) {
-        // Not an error, but do not continue
-        return true;
+
+    if (screen->frame_size.width != new_frame_size.width
+            || screen->frame_size.height != new_frame_size.height) {
+        // frame dimension changed
+        screen->frame_size = new_frame_size;
+
+        struct sc_size new_content_size =
+            get_oriented_size(new_frame_size, screen->orientation);
+        set_content_size(screen, new_content_size);
+
+        sc_screen_update_content_rect(screen);
+
+        enum sc_display_result res =
+            sc_display_set_texture_size(&screen->display, screen->frame_size);
+        if (res == SC_DISPLAY_RESULT_ERROR) {
+            return false;
+        }
+        if (res == SC_DISPLAY_RESULT_PENDING) {
+            // Not an error, but do not continue
+            return true;
+        }
     }
 
-    res = sc_display_update_texture(&screen->display, frame);
+    enum sc_display_result res =
+        sc_display_update_texture(&screen->display, frame);
     if (res == SC_DISPLAY_RESULT_ERROR) {
         return false;
     }
