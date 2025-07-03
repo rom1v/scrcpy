@@ -619,7 +619,8 @@ sc_screen_apply_frame(struct sc_screen *screen) {
         }
 
         enum sc_display_result res =
-            sc_display_set_texture_size(&screen->display, screen->frame_size);
+            sc_display_prepare_texture(&screen->display, screen->frame_size,
+                                       frame->color_range);
         if (res == SC_DISPLAY_RESULT_ERROR) {
             return false;
         }

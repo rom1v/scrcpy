@@ -28,14 +28,15 @@ struct sc_display {
     bool mipmaps;
 
     struct {
-#define SC_DISPLAY_PENDING_FLAG_SIZE 1
+#define SC_DISPLAY_PENDING_FLAG_TEXTURE 1
 #define SC_DISPLAY_PENDING_FLAG_FRAME 2
         int8_t flags;
-        struct sc_size size;
+        struct {
+            struct sc_size size;
+            enum AVColorRange color_range;
+        } texture;
         AVFrame *frame;
     } pending;
-
-    bool has_frame;
 };
 
 enum sc_display_result {
@@ -52,7 +53,8 @@ void
 sc_display_destroy(struct sc_display *display);
 
 enum sc_display_result
-sc_display_set_texture_size(struct sc_display *display, struct sc_size size);
+sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
+                           enum AVColorRange color_range);
 
 enum sc_display_result
 sc_display_update_texture(struct sc_display *display, const AVFrame *frame);
