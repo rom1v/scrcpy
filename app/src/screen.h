@@ -61,6 +61,7 @@ struct sc_screen {
     // rectangle of the content (excluding black borders)
     struct SDL_Rect rect;
     bool has_frame;
+    bool has_video_window;
     bool fullscreen;
     bool maximized;
     bool minimized;

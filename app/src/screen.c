@@ -208,6 +208,7 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
 static void
 sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
     assert(screen->video);
+    assert(screen->has_video_window);
 
     if (update_content_rect) {
         sc_screen_update_content_rect(screen);
@@ -264,19 +265,6 @@ sc_screen_frame_sink_open(struct sc_frame_sink *sink,
         return false;
     }
 
-    assert(ctx->width > 0 && ctx->width <= 0xFFFF);
-    assert(ctx->height > 0 && ctx->height <= 0xFFFF);
-    // screen->frame_size is never used before the event is pushed, and the
-    // event acts as a memory barrier so it is safe without mutex
-    screen->frame_size.width = ctx->width;
-    screen->frame_size.height = ctx->height;
-
-    // Post the event on the UI thread (the texture must be created from there)
-    bool ok = sc_push_event(SC_EVENT_SCREEN_INIT_SIZE);
-    if (!ok) {
-        return false;
-    }
-
 #ifndef NDEBUG
     screen->open = true;
 #endif
@@ -327,6 +315,7 @@ sc_screen_init(struct sc_screen *screen,
                const struct sc_screen_params *params) {
     screen->resize_pending = false;
     screen->has_frame = false;
+    screen->has_video_window = false;
     screen->fullscreen = false;
     screen->maximized = false;
     screen->minimized = false;
@@ -604,22 +593,6 @@ sc_screen_set_orientation(struct sc_screen *screen,
 }
 
 static bool
-sc_screen_init_size(struct sc_screen *screen) {
-    // Before first frame
-    assert(!screen->has_frame);
-
-    // The requested size is passed via screen->frame_size
-
-    struct sc_size content_size =
-        get_oriented_size(screen->frame_size, screen->orientation);
-    screen->content_size = content_size;
-
-    enum sc_display_result res =
-        sc_display_set_texture_size(&screen->display, screen->frame_size);
-    return res != SC_DISPLAY_RESULT_ERROR;
-}
-
-static bool
 sc_screen_apply_frame(struct sc_screen *screen) {
     assert(screen->video);
 
@@ -628,16 +601,22 @@ sc_screen_apply_frame(struct sc_screen *screen) {
     AVFrame *frame = screen->frame;
     struct sc_size new_frame_size = {frame->width, frame->height};
 
-    if (screen->frame_size.width != new_frame_size.width
+    if (!screen->has_frame
+            || screen->frame_size.width != new_frame_size.width
             || screen->frame_size.height != new_frame_size.height) {
         // frame dimension changed
         screen->frame_size = new_frame_size;
 
         struct sc_size new_content_size =
             get_oriented_size(new_frame_size, screen->orientation);
-        set_content_size(screen, new_content_size);
-
-        sc_screen_update_content_rect(screen);
+        if (screen->has_frame) {
+            set_content_size(screen, new_content_size);
+            sc_screen_update_content_rect(screen);
+        } else {
+            // This is the first frame
+            screen->has_frame = true;
+            screen->content_size = new_content_size;
+        }
 
         enum sc_display_result res =
             sc_display_set_texture_size(&screen->display, screen->frame_size);
@@ -660,8 +639,9 @@ sc_screen_apply_frame(struct sc_screen *screen) {
         return true;
     }
 
-    if (!screen->has_frame) {
-        screen->has_frame = true;
+    assert(screen->has_frame);
+    if (!screen->has_video_window) {
+        screen->has_video_window = true;
         // this is the very first frame, show the window
         sc_screen_show_initial_window(screen);
 
@@ -794,15 +774,6 @@ sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
 bool
 sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
     switch (event->type) {
-        case SC_EVENT_SCREEN_INIT_SIZE: {
-            // The initial size is passed via screen->frame_size
-            bool ok = sc_screen_init_size(screen);
-            if (!ok) {
-                LOGE("Could not initialize screen size");
-                return false;
-            }
-            return true;
-        }
         case SC_EVENT_NEW_FRAME: {
             bool ok = sc_screen_update_frame(screen);
             if (!ok) {
@@ -815,11 +786,12 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             if (!screen->video
                     && event->window.event == SDL_WINDOWEVENT_EXPOSED) {
                 sc_screen_render_novideo(screen);
+                return true;
             }
 
-            // !video implies !has_frame
-            assert(screen->video || !screen->has_frame);
-            if (!screen->has_frame) {
+            // !video implies !has_video_window
+            assert(screen->video || !screen->has_video_window);
+            if (!screen->has_video_window) {
                 // Do nothing
                 return true;
             }
