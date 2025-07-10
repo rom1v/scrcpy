@@ -103,7 +103,7 @@ argv_to_string(const char *const *argv, char *buf, size_t bufsize) {
 
 static void
 show_adb_installation_msg(void) {
-#ifndef __WINDOWS__
+#ifndef _WIN32
     static const struct {
         const char *binary;
         const char *command;
@@ -331,7 +331,7 @@ sc_adb_reverse_remove(struct sc_intr *intr, const char *serial,
 bool
 sc_adb_push(struct sc_intr *intr, const char *serial, const char *local,
             const char *remote, unsigned flags) {
-#ifdef __WINDOWS__
+#ifdef _WIN32
     // Windows will parse the string, so the paths must be quoted
     // (see sys/win/command.c)
     local = sc_str_quote(local);
@@ -351,7 +351,7 @@ sc_adb_push(struct sc_intr *intr, const char *serial, const char *local,
 
     sc_pid pid = sc_adb_execute(argv, flags);
 
-#ifdef __WINDOWS__
+#ifdef _WIN32
     free((void *) remote);
     free((void *) local);
 #endif
@@ -362,7 +362,7 @@ sc_adb_push(struct sc_intr *intr, const char *serial, const char *local,
 bool
 sc_adb_install(struct sc_intr *intr, const char *serial, const char *local,
                unsigned flags) {
-#ifdef __WINDOWS__
+#ifdef _WIN32
     // Windows will parse the string, so the local name must be quoted
     // (see sys/win/command.c)
     local = sc_str_quote(local);
@@ -377,7 +377,7 @@ sc_adb_install(struct sc_intr *intr, const char *serial, const char *local,
 
     sc_pid pid = sc_adb_execute(argv, flags);
 
-#ifdef __WINDOWS__
+#ifdef _WIN32
     free((void *) local);
 #endif
 
