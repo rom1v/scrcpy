@@ -125,14 +125,26 @@ sc_display_destroy(struct sc_display *display) {
 }
 
 static SDL_YUV_CONVERSION_MODE
-sc_display_to_sdl_color_range(enum AVColorRange color_range) {
-    return color_range == AVCOL_RANGE_JPEG ? SDL_YUV_CONVERSION_JPEG
-                                           : SDL_YUV_CONVERSION_AUTOMATIC;
+sc_display_to_sdl_color_mode(enum AVColorSpace color_space,
+                             enum AVColorRange color_range) {
+    switch (color_space) {
+        case AVCOL_SPC_BT709:
+            return SDL_YUV_CONVERSION_BT709;
+        case AVCOL_SPC_BT470BG:
+        case AVCOL_SPC_SMPTE170M:
+            return SDL_YUV_CONVERSION_BT601;
+        default:
+            if (color_range == AVCOL_RANGE_JPEG) {
+                return SDL_YUV_CONVERSION_JPEG;
+            }
+            return SDL_YUV_CONVERSION_AUTOMATIC;
+    }
 }
 
 static SDL_Texture *
 sc_display_create_texture(struct sc_display *display,
-                          struct sc_size size, enum AVColorRange color_range) {
+                          struct sc_size size, enum AVColorSpace color_space,
+                          enum AVColorRange color_range) {
     SDL_Renderer *renderer = display->renderer;
     SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_YV12,
                                              SDL_TEXTUREACCESS_STREAMING,
@@ -156,9 +168,9 @@ sc_display_create_texture(struct sc_display *display,
     }
 
     // Configure YUV color range conversion
-    SDL_YUV_CONVERSION_MODE sdl_color_range =
-        sc_display_to_sdl_color_range(color_range);
-    SDL_SetYUVConversionMode(sdl_color_range);
+    SDL_YUV_CONVERSION_MODE sdl_color_mode =
+        sc_display_to_sdl_color_mode(color_space, color_range);
+    SDL_SetYUVConversionMode(sdl_color_mode);
 
     return texture;
 }
@@ -201,6 +213,7 @@ sc_display_apply_pending(struct sc_display *display) {
         display->texture =
             sc_display_create_texture(display,
                                       display->pending.texture.size,
+                                      display->pending.texture.color_space,
                                       display->pending.texture.color_range);
         if (!display->texture) {
             return false;
@@ -226,6 +239,7 @@ sc_display_apply_pending(struct sc_display *display) {
 static bool
 sc_display_prepare_texture_internal(struct sc_display *display,
                                     struct sc_size size,
+                                    enum AVColorSpace color_space,
                                     enum AVColorRange color_range) {
     assert(size.width && size.height);
 
@@ -233,7 +247,8 @@ sc_display_prepare_texture_internal(struct sc_display *display,
         SDL_DestroyTexture(display->texture);
     }
 
-    display->texture = sc_display_create_texture(display, size, color_range);
+    display->texture =
+            sc_display_create_texture(display, size, color_space, color_range);
     if (!display->texture) {
         return false;
     }
@@ -244,8 +259,10 @@ sc_display_prepare_texture_internal(struct sc_display *display,
 
 enum sc_display_result
 sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
+                           enum AVColorSpace color_space,
                            enum AVColorRange color_range) {
-    bool ok = sc_display_prepare_texture_internal(display, size, color_range);
+    bool ok = sc_display_prepare_texture_internal(display, size, color_space,
+                                                  color_range);
     if (!ok) {
         sc_display_set_pending_texture(display, size, color_range);
         return SC_DISPLAY_RESULT_PENDING;

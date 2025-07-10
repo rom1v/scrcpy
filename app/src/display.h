@@ -33,6 +33,7 @@ struct sc_display {
         int8_t flags;
         struct {
             struct sc_size size;
+            enum AVColorSpace color_space;
             enum AVColorRange color_range;
         } texture;
         AVFrame *frame;
@@ -54,6 +55,7 @@ sc_display_destroy(struct sc_display *display);
 
 enum sc_display_result
 sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
+                           enum AVColorSpace color_space,
                            enum AVColorRange color_range);
 
 enum sc_display_result
