@@ -80,8 +80,16 @@ jobs:
              libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
              libv4l-dev
 
+        # SDL3 is not available in Ubuntu yet
+      - name: Install SDL3
+        run: |
+          app/deps/sdl.sh linux native shared
+
       - name: Test
-        run: release/test_client.sh
+        run: |
+          export PKG_CONFIG_PATH="$PWD"/app/deps/work/install/linux-native-shared/lib/pkgconfig
+          export LD_LIBRARY_PATH="$PWD"/app/deps/work/install/linux-native-shared/lib
+          release/test_client.sh
 
   build-linux-x86_64:
     runs-on: ubuntu-22.04
