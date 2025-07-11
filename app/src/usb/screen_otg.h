@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "mouse_capture.h"
 #include "usb/gamepad_aoa.h"

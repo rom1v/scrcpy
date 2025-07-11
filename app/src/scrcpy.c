@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #ifdef _WIN32
 // not needed here, but winsock2.h must never be included AFTER windows.h
@@ -94,7 +94,7 @@ struct scrcpy {
 #ifdef _WIN32
 static BOOL WINAPI windows_ctrl_handler(DWORD ctrl_type) {
     if (ctrl_type == CTRL_C_EVENT) {
-        sc_push_event(SDL_QUIT);
+        sc_push_event(SDL_EVENT_QUIT);
         return TRUE;
     }
     return FALSE;
@@ -108,19 +108,8 @@ sdl_set_hints(const char *render_driver) {
     }
 
     // App name used in various contexts (such as PulseAudio)
-#if defined(SCRCPY_SDL_HAS_HINT_APP_NAME)
     if (!SDL_SetHint(SDL_HINT_APP_NAME, "scrcpy")) {
         LOGW("Could not set app name");
-    }
-#elif defined(SCRCPY_SDL_HAS_HINT_AUDIO_DEVICE_APP_NAME)
-    if (!SDL_SetHint(SDL_HINT_AUDIO_DEVICE_APP_NAME, "scrcpy")) {
-        LOGW("Could not set audio device app name");
-    }
-#endif
-
-    // Linear filtering
-    if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1")) {
-        LOGW("Could not enable linear filtering");
     }
 
     // Handle a click to gain focus as any other click
@@ -128,21 +117,17 @@ sdl_set_hints(const char *render_driver) {
         LOGW("Could not enable mouse focus clickthrough");
     }
 
-#ifdef SCRCPY_SDL_HAS_HINT_TOUCH_MOUSE_EVENTS
     // Disable synthetic mouse events from touch events
     // Touch events with id SDL_TOUCH_MOUSEID are ignored anyway, but it is
     // better not to generate them in the first place.
     if (!SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0")) {
         LOGW("Could not disable synthetic mouse events");
     }
-#endif
 
-#ifdef SCRCPY_SDL_HAS_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR
     // Disable compositor bypassing on X11
     if (!SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0")) {
         LOGW("Could not disable X11 compositor bypass");
     }
-#endif
 
     // Do not minimize on focus loss
     if (!SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0")) {
@@ -198,7 +183,7 @@ event_loop(struct scrcpy *s, bool has_screen) {
             case SC_EVENT_TIME_LIMIT_REACHED:
                 LOGI("Time limit reached");
                 return SCRCPY_EXIT_SUCCESS;
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
                 return SCRCPY_EXIT_SUCCESS;
             case SC_EVENT_RUN_ON_MAIN_THREAD: {
@@ -238,7 +223,7 @@ await_for_server(bool *connected) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 if (connected) {
                     *connected = false;
                 }
@@ -366,12 +351,19 @@ static void
 init_sdl_gamepads(void) {
     // Trigger a SDL_CONTROLLERDEVICEADDED event for all gamepads already
     // connected
-    int num_joysticks = SDL_NumJoysticks();
-    for (int i = 0; i < num_joysticks; ++i) {
-        if (SDL_IsGameController(i)) {
+    int count;
+    SDL_JoystickID *joysticks = SDL_GetJoysticks(&count);
+    if (!joysticks) {
+        LOGE("Could not list joysticks: %s", SDL_GetError());
+        return;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        SDL_JoystickID joystick = joysticks[i];
+        if (SDL_IsGamepad(joystick)) {
             SDL_Event event;
-            event.cdevice.type = SDL_CONTROLLERDEVICEADDED;
-            event.cdevice.which = i;
+            event.gdevice.type = SDL_EVENT_GAMEPAD_ADDED;
+            event.gdevice.which = i;
             SDL_PushEvent(&event);
         }
     }
@@ -387,7 +379,7 @@ scrcpy(struct scrcpy_options *options) {
     struct scrcpy *s = &scrcpy;
 
     // Minimal SDL initialization
-    if (SDL_Init(SDL_INIT_EVENTS)) {
+    if (!SDL_Init(SDL_INIT_EVENTS)) {
         LOGE("Could not initialize SDL: %s", SDL_GetError());
         return SCRCPY_EXIT_FAILURE;
     }
@@ -513,7 +505,7 @@ scrcpy(struct scrcpy_options *options) {
         // --no-video-playback is passed so that clipboard synchronization
         // still works.
         // <https://github.com/Genymobile/scrcpy/issues/4418>
-        if (SDL_Init(SDL_INIT_VIDEO)) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
             // If it fails, it is an error only if video playback is enabled
             if (options->video_playback) {
                 LOGE("Could not initialize SDL video: %s", SDL_GetError());
@@ -525,14 +517,14 @@ scrcpy(struct scrcpy_options *options) {
     }
 
     if (options->audio_playback) {
-        if (SDL_Init(SDL_INIT_AUDIO)) {
+        if (!SDL_Init(SDL_INIT_AUDIO)) {
             LOGE("Could not initialize SDL audio: %s", SDL_GetError());
             goto end;
         }
     }
 
     if (options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
-        if (SDL_Init(SDL_INIT_GAMECONTROLLER)) {
+        if (!SDL_Init(SDL_INIT_GAMEPAD)) {
             LOGE("Could not initialize SDL gamepad: %s", SDL_GetError());
             goto end;
         }

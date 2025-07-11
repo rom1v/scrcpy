@@ -5,10 +5,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <SDL2/SDL_events.h>
+#include <SDL3/SDL_events.h>
 
 enum {
-    SC_EVENT_NEW_FRAME = SDL_USEREVENT,
+    SC_EVENT_NEW_FRAME = SDL_EVENT_USER,
     SC_EVENT_RUN_ON_MAIN_THREAD,
     SC_EVENT_DEVICE_DISCONNECTED,
     SC_EVENT_SERVER_CONNECTION_FAILED,

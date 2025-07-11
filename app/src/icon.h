@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-#include <SDL2/SDL_surface.h>
+#include <SDL3/SDL_surface.h>
 
 SDL_Surface *
 scrcpy_icon_load(void);

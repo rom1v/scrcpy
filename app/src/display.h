@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <libavutil/frame.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "coords.h"
 #include "opengl.h"
@@ -26,6 +26,7 @@ struct sc_display {
 #endif
 
     bool mipmaps;
+    uint32_t texture_id; // only set if mipmaps is enabled
 
     struct {
 #define SC_DISPLAY_PENDING_FLAG_TEXTURE 1

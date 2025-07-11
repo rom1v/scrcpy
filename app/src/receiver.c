@@ -2,7 +2,8 @@
 
 #include <assert.h>
 #include <inttypes.h>
-#include <SDL2/SDL_clipboard.h>
+#include <stdlib.h>
+#include <SDL3/SDL_clipboard.h>
 
 #include "device_msg.h"
 #include "events.h"

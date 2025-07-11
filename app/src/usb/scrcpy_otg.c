@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #ifdef _WIN32
 # include "adb/adb.h"
@@ -45,7 +45,7 @@ event_loop(struct scrcpy_otg *s) {
             case SC_EVENT_AOA_OPEN_ERROR:
                 LOGE("AOA open error");
                 return SCRCPY_EXIT_FAILURE;
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
                 return SCRCPY_EXIT_SUCCESS;
             default:
@@ -63,22 +63,18 @@ scrcpy_otg(struct scrcpy_options *options) {
 
     const char *serial = options->serial;
 
-    if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1")) {
-        LOGW("Could not enable linear filtering");
-    }
-
     if (!SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1")) {
         LOGW("Could not allow joystick background events");
     }
 
     // Minimal SDL initialization
-    if (SDL_Init(SDL_INIT_EVENTS)) {
+    if (!SDL_Init(SDL_INIT_EVENTS)) {
         LOGE("Could not initialize SDL: %s", SDL_GetError());
         return SCRCPY_EXIT_FAILURE;
     }
 
     if (options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
-        if (SDL_Init(SDL_INIT_GAMECONTROLLER)) {
+        if (!SDL_Init(SDL_INIT_GAMEPAD)) {
             LOGE("Could not initialize SDL controller: %s", SDL_GetError());
             // Not fatal, keyboard/mouse should still work
         }

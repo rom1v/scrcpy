@@ -2,12 +2,13 @@
 
 #include <assert.h>
 #include <string.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "events.h"
 #include "icon.h"
 #include "options.h"
 #include "util/log.h"
+#include "util/window.h"
 
 #define DISPLAY_MARGINS 96
 
@@ -64,7 +65,9 @@ set_window_size(struct sc_screen *screen, struct sc_size new_size) {
 static bool
 get_preferred_display_bounds(struct sc_size *bounds) {
     SDL_Rect rect;
-    if (SDL_GetDisplayUsableBounds(0, &rect)) {
+    SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    bool ok = SDL_GetDisplayUsableBounds(display, &rect);
+    if (!ok) {
         LOGW("Could not get display usable bounds: %s", SDL_GetError());
         return false;
     }
@@ -168,7 +171,7 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
 
     int dw;
     int dh;
-    SDL_GL_GetDrawableSize(screen->window, &dw, &dh);
+    SDL_GetWindowSizeInPixels(screen->window, &dw, &dh);
 
     struct sc_size content_size = screen->content_size;
     // The drawable size is the window size * the HiDPI scale
@@ -236,18 +239,18 @@ sc_screen_render_novideo(struct sc_screen *screen) {
 //
 // <https://bugzilla.libsdl.org/show_bug.cgi?id=2077>
 // <https://stackoverflow.com/a/40693139/1987178>
-static int
+static bool
 event_watcher(void *data, SDL_Event *event) {
     struct sc_screen *screen = data;
     assert(screen->video);
 
-    if (event->type == SDL_WINDOWEVENT
-            && event->window.event == SDL_WINDOWEVENT_RESIZED) {
+    if (event->type == SDL_EVENT_WINDOW_EXPOSED) {
         // In practice, it seems to always be called from the same thread in
         // that specific case. Anyway, it's just a workaround.
         sc_screen_render(screen, true);
     }
-    return 0;
+
+    return true;
 }
 #endif
 
@@ -258,6 +261,7 @@ sc_screen_frame_sink_open(struct sc_frame_sink *sink,
     (void) ctx;
 
     struct sc_screen *screen = DOWNCAST(sink);
+    (void) screen;
 
     if (ctx->width <= 0 || ctx->width > 0xFFFF
             || ctx->height <= 0 || ctx->height > 0xFFFF) {
@@ -349,7 +353,7 @@ sc_screen_init(struct sc_screen *screen,
         }
     }
 
-    uint32_t window_flags = SDL_WINDOW_ALLOW_HIGHDPI;
+    uint32_t window_flags = SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if (params->always_on_top) {
         window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
     }
@@ -383,7 +387,8 @@ sc_screen_init(struct sc_screen *screen,
     }
 
     // The window will be positioned and sized on first video frame
-    screen->window = SDL_CreateWindow(title, x, y, width, height, window_flags);
+    screen->window =
+        sc_create_sdl_window(title, x, y, width, height, window_flags);
     if (!screen->window) {
         LOGE("Could not create window: %s", SDL_GetError());
         goto error_destroy_fps_counter;
@@ -712,8 +717,8 @@ void
 sc_screen_toggle_fullscreen(struct sc_screen *screen) {
     assert(screen->video);
 
-    uint32_t new_mode = screen->fullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP;
-    if (SDL_SetWindowFullscreen(screen->window, new_mode)) {
+    bool ok = SDL_SetWindowFullscreen(screen->window, !screen->fullscreen);
+    if (!ok) {
         LOGW("Could not switch fullscreen mode: %s", SDL_GetError());
         return;
     }
@@ -774,6 +779,8 @@ sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
 
 bool
 sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
+    // !video implies !has_video_window
+    assert(screen->video || !screen->has_video_window);
     switch (event->type) {
         case SC_EVENT_NEW_FRAME: {
             bool ok = sc_screen_update_frame(screen);
@@ -783,46 +790,38 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             }
             return true;
         }
-        case SDL_WINDOWEVENT:
-            if (!screen->video
-                    && event->window.event == SDL_WINDOWEVENT_EXPOSED) {
+        case SDL_EVENT_WINDOW_EXPOSED:
+            if (!screen->video) {
                 sc_screen_render_novideo(screen);
+            } else if (screen->has_video_window) {
+                sc_screen_render(screen, true);
+            }
+            return true;
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            if (screen->has_video_window) {
+                sc_screen_render(screen, true);
+            }
+            return true;
+        case SDL_EVENT_WINDOW_MAXIMIZED:
+            screen->maximized = true;
+            return true;
+        case SDL_EVENT_WINDOW_MINIMIZED:
+            screen->minimized = true;
+            return true;
+        case SDL_EVENT_WINDOW_RESTORED:
+            if (screen->fullscreen) {
+                // On Windows, in maximized+fullscreen, disabling
+                // fullscreen mode unexpectedly triggers the "restored"
+                // then "maximized" events, leaving the window in a
+                // weird state (maximized according to the events, but
+                // not maximized visually).
                 return true;
             }
-
-            // !video implies !has_video_window
-            assert(screen->video || !screen->has_video_window);
-            if (!screen->has_video_window) {
-                // Do nothing
-                return true;
-            }
-            switch (event->window.event) {
-                case SDL_WINDOWEVENT_EXPOSED:
-                    sc_screen_render(screen, true);
-                    break;
-                case SDL_WINDOWEVENT_SIZE_CHANGED:
-                    sc_screen_render(screen, true);
-                    break;
-                case SDL_WINDOWEVENT_MAXIMIZED:
-                    screen->maximized = true;
-                    break;
-                case SDL_WINDOWEVENT_MINIMIZED:
-                    screen->minimized = true;
-                    break;
-                case SDL_WINDOWEVENT_RESTORED:
-                    if (screen->fullscreen) {
-                        // On Windows, in maximized+fullscreen, disabling
-                        // fullscreen mode unexpectedly triggers the "restored"
-                        // then "maximized" events, leaving the window in a
-                        // weird state (maximized according to the events, but
-                        // not maximized visually).
-                        break;
-                    }
-                    screen->maximized = false;
-                    screen->minimized = false;
-                    apply_pending_resize(screen);
-                    sc_screen_render(screen, true);
-                    break;
+            screen->maximized = false;
+            screen->minimized = false;
+            if (screen->has_video_window) {
+                apply_pending_resize(screen);
+                sc_screen_render(screen, true);
             }
             return true;
     }
@@ -905,7 +904,7 @@ sc_screen_hidpi_scale_coords(struct sc_screen *screen, int32_t *x, int32_t *y) {
     // take the HiDPI scaling (dw/ww and dh/wh) into account
     int ww, wh, dw, dh;
     SDL_GetWindowSize(screen->window, &ww, &wh);
-    SDL_GL_GetDrawableSize(screen->window, &dw, &dh);
+    SDL_GetWindowSizeInPixels(screen->window, &dw, &dh);
 
     // scale for HiDPI (64 bits for intermediate multiplications)
     *x = (int64_t) *x * dw / ww;

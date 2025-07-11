@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "android/input.h"
 #include "android/keycodes.h"
@@ -374,11 +374,11 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     bool paused = im->screen->paused;
     bool video = im->screen->video;
 
-    SDL_Keycode sdl_keycode = event->keysym.sym;
-    uint16_t mod = event->keysym.mod;
-    bool down = event->type == SDL_KEYDOWN;
-    bool ctrl = event->keysym.mod & KMOD_CTRL;
-    bool shift = event->keysym.mod & KMOD_SHIFT;
+    SDL_Keycode sdl_keycode = event->key;
+    uint16_t mod = event->mod;
+    bool down = event->type == SDL_EVENT_KEY_DOWN;
+    bool ctrl = event->mod & SDL_KMOD_CTRL;
+    bool shift = event->mod & SDL_KMOD_SHIFT;
     bool repeat = event->repeat;
 
     // Either the modifier includes a shortcut modifier, or the key
@@ -402,39 +402,39 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     if (is_shortcut) {
         enum sc_action action = down ? SC_ACTION_DOWN : SC_ACTION_UP;
         switch (sdl_keycode) {
-            case SDLK_h:
+            case SDLK_H:
                 if (im->kp && !shift && !repeat && !paused) {
                     action_home(im, action);
                 }
                 return;
-            case SDLK_b: // fall-through
+            case SDLK_B: // fall-through
             case SDLK_BACKSPACE:
                 if (im->kp && !shift && !repeat && !paused) {
                     action_back(im, action);
                 }
                 return;
-            case SDLK_s:
+            case SDLK_S:
                 if (im->kp && !shift && !repeat && !paused) {
                     action_app_switch(im, action);
                 }
                 return;
-            case SDLK_m:
+            case SDLK_M:
                 if (im->kp && !shift && !repeat && !paused) {
                     action_menu(im, action);
                 }
                 return;
-            case SDLK_p:
+            case SDLK_P:
                 if (im->kp && !shift && !repeat && !paused) {
                     action_power(im, action);
                 }
                 return;
-            case SDLK_o:
+            case SDLK_O:
                 if (control && !repeat && down && !paused) {
                     bool on = shift;
                     set_display_power(im, on);
                 }
                 return;
-            case SDLK_z:
+            case SDLK_Z:
                 if (video && down && !repeat) {
                     sc_screen_set_paused(im->screen, !shift);
                 }
@@ -483,17 +483,17 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     }
                 }
                 return;
-            case SDLK_c:
+            case SDLK_C:
                 if (im->kp && !shift && !repeat && down && !paused) {
                     get_device_clipboard(im, SC_COPY_KEY_COPY);
                 }
                 return;
-            case SDLK_x:
+            case SDLK_X:
                 if (im->kp && !shift && !repeat && down && !paused) {
                     get_device_clipboard(im, SC_COPY_KEY_CUT);
                 }
                 return;
-            case SDLK_v:
+            case SDLK_V:
                 if (im->kp && !repeat && down && !paused) {
                     if (shift || im->legacy_paste) {
                         // inject the text as input events
@@ -505,27 +505,27 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     }
                 }
                 return;
-            case SDLK_f:
+            case SDLK_F:
                 if (video && !shift && !repeat && down) {
                     sc_screen_toggle_fullscreen(im->screen);
                 }
                 return;
-            case SDLK_w:
+            case SDLK_W:
                 if (video && !shift && !repeat && down) {
                     sc_screen_resize_to_fit(im->screen);
                 }
                 return;
-            case SDLK_g:
+            case SDLK_G:
                 if (video && !shift && !repeat && down) {
                     sc_screen_resize_to_pixel_perfect(im->screen);
                 }
                 return;
-            case SDLK_i:
+            case SDLK_I:
                 if (video && !shift && !repeat && down) {
                     switch_fps_counter_state(im);
                 }
                 return;
-            case SDLK_n:
+            case SDLK_N:
                 if (control && !repeat && down && !paused) {
                     if (shift) {
                         collapse_panels(im);
@@ -536,7 +536,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     }
                 }
                 return;
-            case SDLK_r:
+            case SDLK_R:
                 if (control && !repeat && down && !paused) {
                     if (shift) {
                         reset_video(im);
@@ -545,7 +545,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     }
                 }
                 return;
-            case SDLK_k:
+            case SDLK_K:
                 if (control && !shift && !repeat && down && !paused
                         && im->kp && im->kp->hid) {
                     // Only if the current keyboard is hid
@@ -562,7 +562,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     }
 
     uint64_t ack_to_wait = SC_SEQUENCE_INVALID;
-    bool is_ctrl_v = ctrl && !shift && sdl_keycode == SDLK_v && down && !repeat;
+    bool is_ctrl_v = ctrl && !shift && sdl_keycode == SDLK_V && down && !repeat;
     if (im->clipboard_autosync && is_ctrl_v) {
         if (im->legacy_paste) {
             // inject the text as input events
@@ -595,7 +595,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         return;
     }
 
-    enum sc_scancode scancode = sc_scancode_from_sdl(event->keysym.scancode);
+    enum sc_scancode scancode = sc_scancode_from_sdl(event->scancode);
     if (scancode == SC_SCANCODE_UNKNOWN) {
         return;
     }
@@ -605,7 +605,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         .keycode = keycode,
         .scancode = scancode,
         .repeat = event->repeat,
-        .mods_state = sc_mods_state_from_sdl(event->keysym.mod),
+        .mods_state = sc_mods_state_from_sdl(event->mod),
     };
 
     assert(im->kp->ops->process_key);
@@ -674,7 +674,7 @@ sc_input_manager_process_touch(struct sc_input_manager *im,
 
     int dw;
     int dh;
-    SDL_GL_GetDrawableSize(im->screen->window, &dw, &dh);
+    SDL_GetWindowSizeInPixels(im->screen->window, &dw, &dh);
 
     // SDL touch event coordinates are normalized in the range [0; 1]
     int32_t x = event->x * dw;
@@ -687,7 +687,7 @@ sc_input_manager_process_touch(struct sc_input_manager *im,
                 sc_screen_convert_drawable_to_frame_coords(im->screen, x, y),
         },
         .action = sc_touch_action_from_sdl(event->type),
-        .pointer_id = event->fingerId,
+        .pointer_id = event->fingerID,
         .pressure = event->pressure,
     };
 
@@ -723,7 +723,7 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
 
     bool control = im->controller;
     bool paused = im->screen->paused;
-    bool down = event->type == SDL_MOUSEBUTTONDOWN;
+    bool down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
 
     enum sc_mouse_button button = sc_mouse_button_from_sdl(event->button);
     if (button == SC_MOUSE_BUTTON_UNKNOWN) {
@@ -736,8 +736,8 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
     }
 
     SDL_Keymod keymod = SDL_GetModState();
-    bool ctrl_pressed = keymod & KMOD_CTRL;
-    bool shift_pressed = keymod & KMOD_SHIFT;
+    bool ctrl_pressed = keymod & SDL_KMOD_CTRL;
+    bool shift_pressed = keymod & SDL_KMOD_SHIFT;
 
     if (control && !paused) {
         enum sc_action action = down ? SC_ACTION_DOWN : SC_ACTION_UP;
@@ -889,16 +889,16 @@ sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
     }
 
     // mouse_x and mouse_y are expressed in pixels relative to the window
-    int mouse_x;
-    int mouse_y;
+    float mouse_x;
+    float mouse_y;
     uint32_t buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
     (void) buttons; // Actual buttons are tracked manually to ignore shortcuts
 
     struct sc_mouse_scroll_event evt = {
         .position = sc_input_manager_get_position(im, mouse_x, mouse_y),
 #if SDL_VERSION_ATLEAST(2, 0, 18)
-        .hscroll = event->preciseX,
-        .vscroll = event->preciseY,
+        .hscroll = event->x,
+        .vscroll = event->y,
 #else
         .hscroll = event->x,
         .vscroll = event->y,
@@ -911,31 +911,31 @@ sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
 
 static void
 sc_input_manager_process_gamepad_device(struct sc_input_manager *im,
-                                       const SDL_ControllerDeviceEvent *event) {
-    if (event->type == SDL_CONTROLLERDEVICEADDED) {
-        SDL_GameController *gc = SDL_GameControllerOpen(event->which);
+                                       const SDL_GamepadDeviceEvent *event) {
+    if (event->type == SDL_EVENT_GAMEPAD_ADDED) {
+        SDL_Gamepad *gc = SDL_OpenGamepad(event->which);
         if (!gc) {
             LOGW("Could not open game controller");
             return;
         }
 
-        SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
+        SDL_Joystick *joystick = SDL_GetGamepadJoystick(gc);
         if (!joystick) {
             LOGW("Could not get controller joystick");
-            SDL_GameControllerClose(gc);
+            SDL_CloseGamepad(gc);
             return;
         }
 
         struct sc_gamepad_device_event evt = {
-            .gamepad_id = SDL_JoystickInstanceID(joystick),
+            .gamepad_id = SDL_GetJoystickID(joystick),
         };
         im->gp->ops->process_gamepad_added(im->gp, &evt);
-    } else if (event->type == SDL_CONTROLLERDEVICEREMOVED) {
+    } else if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
         SDL_JoystickID id = event->which;
 
-        SDL_GameController *gc = SDL_GameControllerFromInstanceID(id);
+        SDL_Gamepad *gc = SDL_GetGamepadFromID(id);
         if (gc) {
-            SDL_GameControllerClose(gc);
+            SDL_CloseGamepad(gc);
         } else {
             LOGW("Unknown gamepad device removed");
         }
@@ -952,7 +952,7 @@ sc_input_manager_process_gamepad_device(struct sc_input_manager *im,
 
 static void
 sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
-                                      const SDL_ControllerAxisEvent *event) {
+                                      const SDL_GamepadAxisEvent *event) {
     enum sc_gamepad_axis axis = sc_gamepad_axis_from_sdl(event->axis);
     if (axis == SC_GAMEPAD_AXIS_UNKNOWN) {
         return;
@@ -968,7 +968,7 @@ sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
 
 static void
 sc_input_manager_process_gamepad_button(struct sc_input_manager *im,
-                                       const SDL_ControllerButtonEvent *event) {
+                                       const SDL_GamepadButtonEvent *event) {
     enum sc_gamepad_button button = sc_gamepad_button_from_sdl(event->button);
     if (button == SC_GAMEPAD_BUTTON_UNKNOWN) {
         return;
@@ -991,8 +991,8 @@ is_apk(const char *file) {
 static void
 sc_input_manager_process_file(struct sc_input_manager *im,
                               const SDL_DropEvent *event) {
-    char *file = strdup(event->file);
-    SDL_free(event->file);
+    assert(event->type == SDL_EVENT_DROP_FILE);
+    char *file = strdup(event->data);
     if (!file) {
         LOG_OOM();
         return;
@@ -1016,66 +1016,66 @@ sc_input_manager_handle_event(struct sc_input_manager *im,
     bool control = im->controller;
     bool paused = im->screen->paused;
     switch (event->type) {
-        case SDL_TEXTINPUT:
+        case SDL_EVENT_TEXT_INPUT:
             if (!im->kp || paused) {
                 break;
             }
             sc_input_manager_process_text_input(im, &event->text);
             break;
-        case SDL_KEYDOWN:
-        case SDL_KEYUP:
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
             // some key events do not interact with the device, so process the
             // event even if control is disabled
             sc_input_manager_process_key(im, &event->key);
             break;
-        case SDL_MOUSEMOTION:
+        case SDL_EVENT_MOUSE_MOTION:
             if (!im->mp || paused) {
                 break;
             }
             sc_input_manager_process_mouse_motion(im, &event->motion);
             break;
-        case SDL_MOUSEWHEEL:
+        case SDL_EVENT_MOUSE_WHEEL:
             if (!im->mp || paused) {
                 break;
             }
             sc_input_manager_process_mouse_wheel(im, &event->wheel);
             break;
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
             // some mouse events do not interact with the device, so process
             // the event even if control is disabled
             sc_input_manager_process_mouse_button(im, &event->button);
             break;
-        case SDL_FINGERMOTION:
-        case SDL_FINGERDOWN:
-        case SDL_FINGERUP:
+        case SDL_EVENT_FINGER_MOTION:
+        case SDL_EVENT_FINGER_DOWN:
+        case SDL_EVENT_FINGER_UP:
             if (!im->mp || paused) {
                 break;
             }
             sc_input_manager_process_touch(im, &event->tfinger);
             break;
-        case SDL_CONTROLLERDEVICEADDED:
-        case SDL_CONTROLLERDEVICEREMOVED:
+        case SDL_EVENT_GAMEPAD_ADDED:
+        case SDL_EVENT_GAMEPAD_REMOVED:
             // Handle device added or removed even if paused
             if (!im->gp) {
                 break;
             }
-            sc_input_manager_process_gamepad_device(im, &event->cdevice);
+            sc_input_manager_process_gamepad_device(im, &event->gdevice);
             break;
-        case SDL_CONTROLLERAXISMOTION:
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION:
             if (!im->gp || paused) {
                 break;
             }
-            sc_input_manager_process_gamepad_axis(im, &event->caxis);
+            sc_input_manager_process_gamepad_axis(im, &event->gaxis);
             break;
-        case SDL_CONTROLLERBUTTONDOWN:
-        case SDL_CONTROLLERBUTTONUP:
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        case SDL_EVENT_GAMEPAD_BUTTON_UP:
             if (!im->gp || paused) {
                 break;
             }
-            sc_input_manager_process_gamepad_button(im, &event->cbutton);
+            sc_input_manager_process_gamepad_button(im, &event->gbutton);
             break;
-        case SDL_DROPFILE: {
+        case SDL_EVENT_DROP_FILE: {
             if (!control) {
                 break;
             }
