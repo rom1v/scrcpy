@@ -27,24 +27,6 @@ struct sc_display {
 
     bool mipmaps;
     uint32_t texture_id; // only set if mipmaps is enabled
-
-    struct {
-#define SC_DISPLAY_PENDING_FLAG_TEXTURE 1
-#define SC_DISPLAY_PENDING_FLAG_FRAME 2
-        int8_t flags;
-        struct {
-            struct sc_size size;
-            enum AVColorSpace color_space;
-            enum AVColorRange color_range;
-        } texture;
-        AVFrame *frame;
-    } pending;
-};
-
-enum sc_display_result {
-    SC_DISPLAY_RESULT_OK,
-    SC_DISPLAY_RESULT_PENDING,
-    SC_DISPLAY_RESULT_ERROR,
 };
 
 bool
@@ -54,15 +36,15 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
 void
 sc_display_destroy(struct sc_display *display);
 
-enum sc_display_result
+bool
 sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
                            enum AVColorSpace color_space,
                            enum AVColorRange color_range);
 
-enum sc_display_result
+bool
 sc_display_update_texture(struct sc_display *display, const AVFrame *frame);
 
-enum sc_display_result
+bool
 sc_display_render(struct sc_display *display, const SDL_Rect *geometry,
                   enum sc_orientation orientation);
 

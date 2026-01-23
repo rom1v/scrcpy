@@ -192,16 +192,16 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
         sc_screen_update_content_rect(screen);
     }
 
-    enum sc_display_result res =
+    bool ok =
         sc_display_render(&screen->display, &screen->rect, screen->orientation);
-    (void) res; // any error already logged
+    (void) ok; // any error already logged
 }
 
 static void
 sc_screen_render_novideo(struct sc_screen *screen) {
-    enum sc_display_result res =
+    bool ok =
         sc_display_render(&screen->display, NULL, SC_ORIENTATION_0);
-    (void) res; // any error already logged
+    (void) ok; // any error already logged
 }
 
 #if defined(__APPLE__) || defined(_WIN32)
@@ -606,6 +606,14 @@ sc_screen_apply_frame(struct sc_screen *screen) {
     if (!screen->has_frame
             || screen->frame_size.width != new_frame_size.width
             || screen->frame_size.height != new_frame_size.height) {
+
+        bool ok =
+            sc_display_prepare_texture(&screen->display, new_frame_size,
+                                       frame->colorspace, frame->color_range);
+        if (!ok) {
+            return false;
+        }
+
         // frame dimension changed
         screen->frame_size = new_frame_size;
 
@@ -619,27 +627,11 @@ sc_screen_apply_frame(struct sc_screen *screen) {
             screen->has_frame = true;
             screen->content_size = new_content_size;
         }
-
-        enum sc_display_result res =
-            sc_display_prepare_texture(&screen->display, screen->frame_size,
-                                       frame->colorspace, frame->color_range);
-        if (res == SC_DISPLAY_RESULT_ERROR) {
-            return false;
-        }
-        if (res == SC_DISPLAY_RESULT_PENDING) {
-            // Not an error, but do not continue
-            return true;
-        }
     }
 
-    enum sc_display_result res =
-        sc_display_update_texture(&screen->display, frame);
-    if (res == SC_DISPLAY_RESULT_ERROR) {
+    bool ok = sc_display_update_texture(&screen->display, frame);
+    if (!ok) {
         return false;
-    }
-    if (res == SC_DISPLAY_RESULT_PENDING) {
-        // Not an error, but do not continue
-        return true;
     }
 
     assert(screen->has_frame);
@@ -696,7 +688,10 @@ sc_screen_set_paused(struct sc_screen *screen, bool paused) {
         av_frame_free(&screen->frame);
         screen->frame = screen->resume_frame;
         screen->resume_frame = NULL;
-        sc_screen_apply_frame(screen);
+        bool ok = sc_screen_apply_frame(screen);
+        if (!ok) {
+            LOGE("Resume frame update failed");
+        }
     }
 
     if (!paused) {
@@ -778,7 +773,6 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             bool ok = sc_screen_update_frame(screen);
             if (!ok) {
                 LOGE("Frame update failed\n");
-                return false;
             }
             return true;
         }

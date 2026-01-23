@@ -96,8 +96,6 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
     }
 
     display->texture = NULL;
-    display->pending.flags = 0;
-    display->pending.frame = NULL;
 
     if (icon_novideo) {
         // Without video, set a static scrcpy icon as window content
@@ -116,9 +114,6 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
 
 void
 sc_display_destroy(struct sc_display *display) {
-    if (display->pending.frame) {
-        av_frame_free(&display->pending.frame);
-    }
 #ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
     SDL_GL_DestroyContext(display->gl_context);
 #endif
@@ -228,79 +223,10 @@ sc_display_create_texture(struct sc_display *display,
     return texture;
 }
 
-static inline void
-sc_display_set_pending_texture(struct sc_display *display,
-                               struct sc_size size,
-                               enum AVColorRange color_range) {
-    assert(!display->texture);
-    display->pending.texture.size = size;
-    display->pending.texture.color_range = color_range;
-    display->pending.flags |= SC_DISPLAY_PENDING_FLAG_TEXTURE;
-}
-
-static bool
-sc_display_set_pending_frame(struct sc_display *display, const AVFrame *frame) {
-    if (!display->pending.frame) {
-        display->pending.frame = av_frame_alloc();
-        if (!display->pending.frame) {
-            LOG_OOM();
-            return false;
-        }
-    }
-
-    av_frame_unref(display->pending.frame);
-    int r = av_frame_ref(display->pending.frame, frame);
-    if (r) {
-        LOGE("Could not ref frame: %d", r);
-        return false;
-    }
-
-    display->pending.flags |= SC_DISPLAY_PENDING_FLAG_FRAME;
-
-    return true;
-}
-
-// Forward declaration
-static bool
-sc_display_update_texture_internal(struct sc_display *display,
-                                   const AVFrame *frame);
-
-static bool
-sc_display_apply_pending(struct sc_display *display) {
-    if (display->pending.flags & SC_DISPLAY_PENDING_FLAG_TEXTURE) {
-        assert(!display->texture);
-        display->texture =
-            sc_display_create_texture(display,
-                                      display->pending.texture.size,
-                                      display->pending.texture.color_space,
-                                      display->pending.texture.color_range);
-        if (!display->texture) {
-            return false;
-        }
-
-        display->pending.flags &= ~SC_DISPLAY_PENDING_FLAG_TEXTURE;
-    }
-
-    if (display->pending.flags & SC_DISPLAY_PENDING_FLAG_FRAME) {
-        assert(display->pending.frame);
-        bool ok = sc_display_update_texture_internal(display,
-                                                     display->pending.frame);
-        if (!ok) {
-            return false;
-        }
-
-        av_frame_unref(display->pending.frame);
-        display->pending.flags &= ~SC_DISPLAY_PENDING_FLAG_FRAME;
-    }
-
-    return true;
-}
-
-static bool
-sc_display_prepare_texture_internal(struct sc_display *display,
-                                    struct sc_size size,
-                                    enum AVColorSpace color_space,
-                                    enum AVColorRange color_range) {
+bool
+sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
+                           enum AVColorSpace color_space,
+                           enum AVColorRange color_range) {
     assert(size.width && size.height);
 
     if (display->texture) {
@@ -317,24 +243,9 @@ sc_display_prepare_texture_internal(struct sc_display *display,
     return true;
 }
 
-enum sc_display_result
-sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
-                           enum AVColorSpace color_space,
-                           enum AVColorRange color_range) {
-    bool ok = sc_display_prepare_texture_internal(display, size, color_space,
-                                                  color_range);
-    if (!ok) {
-        sc_display_set_pending_texture(display, size, color_range);
-        return SC_DISPLAY_RESULT_PENDING;
-
-    }
-
-    return SC_DISPLAY_RESULT_OK;
-}
-
-static bool
-sc_display_update_texture_internal(struct sc_display *display,
-                                   const AVFrame *frame) {
+bool
+sc_display_update_texture(struct sc_display *display, const AVFrame *frame) {
+    assert(display->texture);
     bool ok = SDL_UpdateYUVTexture(display->texture, NULL,
                                    frame->data[0], frame->linesize[0],
                                    frame->data[1], frame->linesize[1],
@@ -356,36 +267,18 @@ sc_display_update_texture_internal(struct sc_display *display,
     return true;
 }
 
-enum sc_display_result
-sc_display_update_texture(struct sc_display *display, const AVFrame *frame) {
-    bool ok = sc_display_update_texture_internal(display, frame);
-    if (!ok) {
-        ok = sc_display_set_pending_frame(display, frame);
-        if (!ok) {
-            LOGE("Could not set pending frame");
-            return SC_DISPLAY_RESULT_ERROR;
-        }
-
-        return SC_DISPLAY_RESULT_PENDING;
-    }
-
-    return SC_DISPLAY_RESULT_OK;
-}
-
-enum sc_display_result
+bool
 sc_display_render(struct sc_display *display, const SDL_Rect *geometry,
                   enum sc_orientation orientation) {
     sc_sdl_render_clear(display->renderer);
 
-    if (display->pending.flags) {
-        bool ok = sc_display_apply_pending(display);
-        if (!ok) {
-            return SC_DISPLAY_RESULT_PENDING;
-        }
-    }
-
+    bool ok = false;
     SDL_Renderer *renderer = display->renderer;
     SDL_Texture *texture = display->texture;
+    if (!texture) {
+        LOGW("No texture to render");
+        goto end;
+    }
 
     if (orientation == SC_ORIENTATION_0) {
         SDL_FRect frect;
@@ -394,11 +287,7 @@ sc_display_render(struct sc_display *display, const SDL_Rect *geometry,
             SDL_RectToFRect(geometry, &frect);
             fgeometry = &frect;
         }
-        bool ok = SDL_RenderTexture(renderer, texture, NULL, fgeometry);
-        if (!ok) {
-            LOGE("Could not render texture: %s", SDL_GetError());
-            return SC_DISPLAY_RESULT_ERROR;
-        }
+        ok = SDL_RenderTexture(renderer, texture, NULL, fgeometry);
     } else {
         unsigned cw_rotation = sc_orientation_get_rotation(orientation);
         double angle = 90 * cw_rotation;
@@ -416,14 +305,15 @@ sc_display_render(struct sc_display *display, const SDL_Rect *geometry,
         SDL_FlipMode flip = sc_orientation_is_mirror(orientation)
                               ? SDL_FLIP_HORIZONTAL : 0;
 
-        bool ok = SDL_RenderTextureRotated(renderer, texture, NULL, &frect,
-                                           angle, NULL, flip);
-        if (!ok) {
-            LOGE("Could not render texture: %s", SDL_GetError());
-            return SC_DISPLAY_RESULT_ERROR;
-        }
+        ok = SDL_RenderTextureRotated(renderer, texture, NULL, &frect, angle,
+                                      NULL, flip);
     }
 
+    if (!ok) {
+        LOGE("Could not render texture: %s", SDL_GetError());
+    }
+
+end:
     sc_sdl_render_present(display->renderer);
-    return SC_DISPLAY_RESULT_OK;
+    return ok;
 }
