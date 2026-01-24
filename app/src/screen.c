@@ -144,15 +144,8 @@ sc_screen_is_relative_mode(struct sc_screen *screen) {
 }
 
 static void
-sc_screen_update_content_rect(struct sc_screen *screen) {
-    assert(screen->video);
-
-    struct sc_size content_size = screen->content_size;
-    struct sc_size render_size =
-        sc_sdl_get_render_output_size(screen->renderer);
-
-    SDL_Rect *rect = &screen->rect;
-
+compute_content_rect(struct sc_size render_size, struct sc_size content_size,
+                     SDL_Rect *rect) {
     if (is_optimal_size(render_size, content_size)) {
         rect->x = 0;
         rect->y = 0;
@@ -176,6 +169,15 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
                                      / content_size.height;
         rect->x = (render_size.width - rect->w) / 2;
     }
+}
+
+static void
+sc_screen_update_content_rect(struct sc_screen *screen) {
+    assert(screen->video);
+
+    struct sc_size render_size =
+        sc_sdl_get_render_output_size(screen->renderer);
+    compute_content_rect(render_size, screen->content_size, &screen->rect);
 }
 
 // render the texture to the renderer
