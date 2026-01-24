@@ -33,45 +33,16 @@ sc_display_init_novideo_icon(struct sc_display *display,
 }
 
 bool
-sc_display_init(struct sc_display *display, SDL_Window *window,
+sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
                 SDL_Surface *icon_novideo, bool mipmaps) {
-    display->renderer = SDL_CreateRenderer(window, NULL);
-    if (!display->renderer) {
-        LOGE("Could not create renderer: %s", SDL_GetError());
-        return false;
-    }
-
-    const char *renderer_name = SDL_GetRendererName(display->renderer);
+    const char *renderer_name = SDL_GetRendererName(renderer);
     LOGI("Renderer: %s", renderer_name ? renderer_name : "(unknown)");
 
     display->mipmaps = false;
 
-#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
-    display->gl_context = NULL;
-#endif
-
     // starts with "opengl"
     bool use_opengl = renderer_name && !strncmp(renderer_name, "opengl", 6);
     if (use_opengl) {
-
-#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
-        // Persuade macOS to give us something better than OpenGL 2.1.
-        // If we create a Core Profile context, we get the best OpenGL version.
-        bool ok = SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                                      SDL_GL_CONTEXT_PROFILE_CORE);
-        if (!ok) {
-            LOGW("Could not set a GL Core Profile Context");
-        }
-
-        LOGD("Creating OpenGL Core Profile context");
-        display->gl_context = SDL_GL_CreateContext(window);
-        if (!display->gl_context) {
-            LOGE("Could not create OpenGL context: %s", SDL_GetError());
-            SDL_DestroyRenderer(display->renderer);
-            return false;
-        }
-#endif
-
         struct sc_opengl *gl = &display->gl;
         sc_opengl_init(gl);
 
@@ -95,6 +66,7 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
         LOGD("Trilinear filtering disabled (not an OpenGL renderer)");
     }
 
+    display->renderer = renderer;
     display->texture = NULL;
 
     if (icon_novideo) {
@@ -104,7 +76,6 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
 #ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
             SDL_GL_DestroyContext(display->gl_context);
 #endif
-            SDL_DestroyRenderer(display->renderer);
             return false;
         }
     }
@@ -114,13 +85,9 @@ sc_display_init(struct sc_display *display, SDL_Window *window,
 
 void
 sc_display_destroy(struct sc_display *display) {
-#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
-    SDL_GL_DestroyContext(display->gl_context);
-#endif
     if (display->texture) {
         SDL_DestroyTexture(display->texture);
     }
-    SDL_DestroyRenderer(display->renderer);
 }
 
 static enum SDL_Colorspace

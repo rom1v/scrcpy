@@ -389,15 +389,45 @@ sc_screen_init(struct sc_screen *screen,
         goto error_destroy_window;
     }
 
+    screen->renderer = SDL_CreateRenderer(screen->window, NULL);
+    if (!screen->renderer) {
+        LOGE("Could not create renderer: %s", SDL_GetError());
+        goto error_destroy_window;
+    }
+
+#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
+    screen->gl_context = NULL;
+
+    // starts with "opengl"
+    const char *renderer_name = SDL_GetRendererName(screen->renderer);
+    bool use_opengl = renderer_name && !strncmp(renderer_name, "opengl", 6);
+    if (use_opengl) {
+        // Persuade macOS to give us something better than OpenGL 2.1.
+        // If we create a Core Profile context, we get the best OpenGL version.
+        bool ok = SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                                      SDL_GL_CONTEXT_PROFILE_CORE);
+        if (!ok) {
+            LOGW("Could not set a GL Core Profile Context");
+        }
+
+        LOGD("Creating OpenGL Core Profile context");
+        screen->gl_context = SDL_GL_CreateContext(screen->window);
+        if (!screen->gl_context) {
+            LOGE("Could not create OpenGL context: %s", SDL_GetError());
+            goto error_destroy_renderer;
+        }
+    }
+#endif
+
     SDL_Surface *icon_novideo = params->video ? NULL : icon;
     bool mipmaps = params->video && params->mipmaps;
-    ok = sc_display_init(&screen->display, screen->window, icon_novideo,
+    ok = sc_display_init(&screen->display, screen->renderer, icon_novideo,
                          mipmaps);
     if (icon) {
         scrcpy_icon_destroy(icon);
     }
     if (!ok) {
-        goto error_destroy_window;
+        goto error_destroy_renderer;
     }
 
     screen->frame = av_frame_alloc();
@@ -461,6 +491,13 @@ sc_screen_init(struct sc_screen *screen,
 
 error_destroy_display:
     sc_display_destroy(&screen->display);
+error_destroy_renderer:
+#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
+    if (screen->gl_context) {
+        SDL_GL_DestroyContext(screen->gl_context);
+    }
+#endif
+    SDL_DestroyRenderer(screen->renderer);
 error_destroy_window:
     SDL_DestroyWindow(screen->window);
 error_destroy_fps_counter:
@@ -524,6 +561,10 @@ sc_screen_destroy(struct sc_screen *screen) {
 #endif
     sc_display_destroy(&screen->display);
     av_frame_free(&screen->frame);
+#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
+    SDL_GL_DestroyContext(screen->gl_context);
+#endif
+    SDL_DestroyRenderer(screen->renderer);
     SDL_DestroyWindow(screen->window);
     sc_fps_counter_destroy(&screen->fps_counter);
     sc_frame_buffer_destroy(&screen->fb);
