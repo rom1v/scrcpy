@@ -34,6 +34,9 @@ sc_sdl_show_window(SDL_Window *window);
 void
 sc_sdl_hide_window(SDL_Window *window);
 
+struct sc_size
+sc_sdl_get_render_output_size(SDL_Renderer *renderer);
+
 bool
 sc_sdl_render_clear(SDL_Renderer *renderer);
 

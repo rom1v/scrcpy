@@ -148,34 +148,33 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
     assert(screen->video);
 
     struct sc_size content_size = screen->content_size;
-    // The drawable size is the window size * the HiDPI scale
-    struct sc_size drawable_size =
-        sc_sdl_get_window_size_in_pixels(screen->window);
+    struct sc_size render_size =
+        sc_sdl_get_render_output_size(screen->renderer);
 
     SDL_Rect *rect = &screen->rect;
 
-    if (is_optimal_size(drawable_size, content_size)) {
+    if (is_optimal_size(render_size, content_size)) {
         rect->x = 0;
         rect->y = 0;
-        rect->w = drawable_size.width;
-        rect->h = drawable_size.height;
+        rect->w = render_size.width;
+        rect->h = render_size.height;
         return;
     }
 
-    bool keep_width = content_size.width * drawable_size.height
-                    > content_size.height * drawable_size.width;
+    bool keep_width = content_size.width * render_size.height
+                    > content_size.height * render_size.width;
     if (keep_width) {
         rect->x = 0;
-        rect->w = drawable_size.width;
-        rect->h = drawable_size.width * content_size.height
-                                      / content_size.width;
-        rect->y = (drawable_size.height - rect->h) / 2;
+        rect->w = render_size.width;
+        rect->h = render_size.width * content_size.height
+                                    / content_size.width;
+        rect->y = (render_size.height - rect->h) / 2;
     } else {
         rect->y = 0;
-        rect->h = drawable_size.height;
-        rect->w = drawable_size.height * content_size.width
-                                       / content_size.height;
-        rect->x = (drawable_size.width - rect->w) / 2;
+        rect->h = render_size.height;
+        rect->w = render_size.height * content_size.width
+                                     / content_size.height;
+        rect->x = (render_size.width - rect->w) / 2;
     }
 }
 
