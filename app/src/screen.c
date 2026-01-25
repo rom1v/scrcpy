@@ -192,16 +192,71 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
         sc_screen_update_content_rect(screen);
     }
 
-    bool ok =
-        sc_display_render(&screen->display, &screen->rect, screen->orientation);
-    (void) ok; // any error already logged
+    SDL_Renderer *renderer = screen->renderer;
+    sc_sdl_render_clear(renderer);
+
+    bool ok = false;
+    SDL_Texture *texture = screen->display.texture;
+    if (!texture) {
+        LOGW("No texture to render");
+        goto end;
+    }
+
+    SDL_Rect *geometry = &screen->rect;
+    enum sc_orientation orientation = screen->orientation;
+
+    if (orientation == SC_ORIENTATION_0) {
+        SDL_FRect frect;
+        SDL_FRect *fgeometry = NULL;
+        if (geometry) {
+            SDL_RectToFRect(geometry, &frect);
+            fgeometry = &frect;
+        }
+        ok = SDL_RenderTexture(renderer, texture, NULL, fgeometry);
+    } else {
+        unsigned cw_rotation = sc_orientation_get_rotation(orientation);
+        double angle = 90 * cw_rotation;
+
+        SDL_FRect frect;
+        if (sc_orientation_is_swap(orientation)) {
+            frect.x = geometry->x + (geometry->w - geometry->h) / 2.f;
+            frect.y = geometry->y + (geometry->h - geometry->w) / 2.f;
+            frect.w = geometry->h;
+            frect.h = geometry->w;
+        } else {
+            SDL_RectToFRect(geometry, &frect);
+        }
+
+        SDL_FlipMode flip = sc_orientation_is_mirror(orientation)
+                              ? SDL_FLIP_HORIZONTAL : 0;
+
+        ok = SDL_RenderTextureRotated(renderer, texture, NULL, &frect, angle,
+                                      NULL, flip);
+    }
+
+    if (!ok) {
+        LOGE("Could not render texture: %s", SDL_GetError());
+    }
+
+end:
+    sc_sdl_render_present(renderer);
 }
 
 static void
 sc_screen_render_novideo(struct sc_screen *screen) {
-    bool ok =
-        sc_display_render(&screen->display, NULL, SC_ORIENTATION_0);
-    (void) ok; // any error already logged
+    SDL_Renderer *renderer = screen->renderer;
+
+    sc_sdl_render_clear(renderer);
+
+    SDL_Texture *texture = screen->display.texture;
+    assert(texture);
+
+    bool ok = SDL_RenderTexture(renderer, texture, NULL, NULL);
+    if (!ok) {
+        LOGE("Could not render texture: %s", SDL_GetError());
+    }
+
+    sc_sdl_render_present(renderer);
 }
 
 #if defined(__APPLE__) || defined(_WIN32)

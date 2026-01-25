@@ -10,7 +10,6 @@
 
 #include "coords.h"
 #include "opengl.h"
-#include "options.h"
 
 struct sc_display {
     SDL_Renderer *renderer; // owned by the caller
@@ -36,9 +35,5 @@ sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
 
 bool
 sc_display_update_texture(struct sc_display *display, const AVFrame *frame);
-
-bool
-sc_display_render(struct sc_display *display, const SDL_Rect *geometry,
-                  enum sc_orientation orientation);
 
 #endif
