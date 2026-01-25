@@ -145,7 +145,7 @@ sc_screen_is_relative_mode(struct sc_screen *screen) {
 
 static void
 compute_content_rect(struct sc_size render_size, struct sc_size content_size,
-                     bool can_upscale, SDL_Rect *rect) {
+                     bool can_upscale, SDL_FRect *rect) {
     if (is_optimal_size(render_size, content_size)) {
         rect->x = 0;
         rect->y = 0;
@@ -157,8 +157,8 @@ compute_content_rect(struct sc_size render_size, struct sc_size content_size,
     if (!can_upscale && content_size.width <= render_size.width
                      && content_size.height <= render_size.height) {
         // Center without upscaling
-        rect->x = (render_size.width - content_size.width) / 2;
-        rect->y = (render_size.height - content_size.height) / 2;
+        rect->x = (render_size.width - content_size.width) / 2.f;
+        rect->y = (render_size.height - content_size.height) / 2.f;
         rect->w = content_size.width;
         rect->h = content_size.height;
         return;
@@ -169,15 +169,15 @@ compute_content_rect(struct sc_size render_size, struct sc_size content_size,
     if (keep_width) {
         rect->x = 0;
         rect->w = render_size.width;
-        rect->h = render_size.width * content_size.height
-                                    / content_size.width;
-        rect->y = (render_size.height - rect->h) / 2;
+        rect->h = (float) render_size.width * content_size.height
+                                            / content_size.width;
+        rect->y = (render_size.height - rect->h) / 2.f;
     } else {
         rect->y = 0;
         rect->h = render_size.height;
-        rect->w = render_size.height * content_size.width
-                                     / content_size.height;
-        rect->x = (render_size.width - rect->w) / 2;
+        rect->w = (float) render_size.height * content_size.width
+                                             / content_size.height;
+        rect->x = (render_size.width - rect->w) / 2.f;
     }
 }
 
@@ -214,35 +214,31 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
         goto end;
     }
 
-    SDL_Rect *geometry = &screen->rect;
+    SDL_FRect *geometry = &screen->rect;
     enum sc_orientation orientation = screen->orientation;
 
     if (orientation == SC_ORIENTATION_0) {
-        SDL_FRect frect;
-        SDL_FRect *fgeometry = NULL;
-        if (geometry) {
-            SDL_RectToFRect(geometry, &frect);
-            fgeometry = &frect;
-        }
-        ok = SDL_RenderTexture(renderer, texture, NULL, fgeometry);
+        ok = SDL_RenderTexture(renderer, texture, NULL, geometry);
     } else {
         unsigned cw_rotation = sc_orientation_get_rotation(orientation);
         double angle = 90 * cw_rotation;
 
-        SDL_FRect frect;
+        const SDL_FRect *dstrect = NULL;
+        SDL_FRect rect;
         if (sc_orientation_is_swap(orientation)) {
-            frect.x = geometry->x + (geometry->w - geometry->h) / 2.f;
-            frect.y = geometry->y + (geometry->h - geometry->w) / 2.f;
-            frect.w = geometry->h;
-            frect.h = geometry->w;
+            rect.x = geometry->x + (geometry->w - geometry->h) / 2.f;
+            rect.y = geometry->y + (geometry->h - geometry->w) / 2.f;
+            rect.w = geometry->h;
+            rect.h = geometry->w;
+            dstrect = &rect;
         } else {
-            SDL_RectToFRect(geometry, &frect);
+            dstrect = geometry;
         }
 
         SDL_FlipMode flip = sc_orientation_is_mirror(orientation)
                               ? SDL_FLIP_HORIZONTAL : 0;
 
-        ok = SDL_RenderTextureRotated(renderer, texture, NULL, &frect, angle,
+        ok = SDL_RenderTextureRotated(renderer, texture, NULL, dstrect, angle,
                                       NULL, flip);
     }
 

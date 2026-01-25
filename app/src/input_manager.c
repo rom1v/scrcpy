@@ -890,7 +890,7 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
         int32_t x = event->x;
         int32_t y = event->y;
         sc_screen_hidpi_scale_coords(im->screen, &x, &y);
-        SDL_Rect *r = &im->screen->rect;
+        SDL_FRect *r = &im->screen->rect;
         bool outside = x < r->x || x >= r->x + r->w
                     || y < r->y || y >= r->y + r->h;
         if (outside) {

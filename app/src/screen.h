@@ -69,7 +69,7 @@ struct sc_screen {
     // client orientation
     enum sc_orientation orientation;
     // rectangle of the content (excluding black borders)
-    struct SDL_Rect rect;
+    struct SDL_FRect rect;
     bool has_frame;
     bool has_video_window;
 
