@@ -77,9 +77,10 @@ sc_display_to_sdl_color_space(enum AVColorSpace color_space,
 }
 
 static SDL_Texture *
-sc_display_create_texture(struct sc_display *display,
-                          struct sc_size size, enum AVColorSpace color_space,
-                          enum AVColorRange color_range) {
+sc_display_create_frame_texture(struct sc_display *display,
+                                struct sc_size size,
+                                enum AVColorSpace color_space,
+                                enum AVColorRange color_range) {
     SDL_PropertiesID props = SDL_CreateProperties();
     if (!props) {
         return NULL;
@@ -154,28 +155,40 @@ sc_display_create_texture(struct sc_display *display,
 }
 
 bool
-sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
-                           enum AVColorSpace color_space,
-                           enum AVColorRange color_range) {
+sc_display_set_texture_from_frame(struct sc_display *display,
+                                  const AVFrame *frame) {
+
+    struct sc_size size = {frame->width, frame->height};
     assert(size.width && size.height);
 
-    if (display->texture) {
-        SDL_DestroyTexture(display->texture);
+    if (!display->texture
+            || display->texture_type != SC_TEXTURE_TYPE_FRAME
+            || display->texture_size.width != size.width
+            || display->texture_size.height != size.height) {
+        // Incompatible texture, recreate it
+        enum AVColorSpace color_space = frame->colorspace;
+        enum AVColorRange color_range = frame->color_range;
+
+        if (display->texture) {
+            SDL_DestroyTexture(display->texture);
+        }
+
+        display->texture = sc_display_create_frame_texture(display, size,
+                                                           color_space,
+                                                           color_range);
+        if (!display->texture) {
+            return false;
+        }
+
+        display->texture_size = size;
+        display->texture_type = SC_TEXTURE_TYPE_FRAME;
+
+        LOGI("Texture: %" PRIu16 "x%" PRIu16, size.width, size.height);
     }
 
-    display->texture =
-            sc_display_create_texture(display, size, color_space, color_range);
-    if (!display->texture) {
-        return false;
-    }
-
-    LOGI("Texture: %" PRIu16 "x%" PRIu16, size.width, size.height);
-    return true;
-}
-
-bool
-sc_display_update_texture(struct sc_display *display, const AVFrame *frame) {
     assert(display->texture);
+    assert(display->texture_type == SC_TEXTURE_TYPE_FRAME);
+
     bool ok = SDL_UpdateYUVTexture(display->texture, NULL,
                                    frame->data[0], frame->linesize[0],
                                    frame->data[1], frame->linesize[1],
@@ -209,6 +222,10 @@ sc_display_set_texture_from_surface(struct sc_display *display,
         LOGE("Could not create texture: %s", SDL_GetError());
         return false;
     }
+
+    display->texture_size.width = surface->w;
+    display->texture_size.height = surface->h;
+    display->texture_type = SC_TEXTURE_TYPE_ICON;
 
     return true;
 }

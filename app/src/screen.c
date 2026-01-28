@@ -704,13 +704,6 @@ sc_screen_apply_frame(struct sc_screen *screen) {
             || screen->frame_size.width != new_frame_size.width
             || screen->frame_size.height != new_frame_size.height) {
 
-        bool ok =
-            sc_display_prepare_texture(&screen->display, new_frame_size,
-                                       frame->colorspace, frame->color_range);
-        if (!ok) {
-            return false;
-        }
-
         // frame dimension changed
         screen->frame_size = new_frame_size;
 
@@ -726,7 +719,7 @@ sc_screen_apply_frame(struct sc_screen *screen) {
         }
     }
 
-    bool ok = sc_display_update_texture(&screen->display, frame);
+    bool ok = sc_display_set_texture_from_frame(&screen->display, frame);
     if (!ok) {
         return false;
     }
