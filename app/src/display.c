@@ -12,15 +12,6 @@ sc_display_init_novideo_icon(struct sc_display *display,
                              SDL_Surface *icon_novideo) {
     assert(icon_novideo);
 
-    bool ok = SDL_SetRenderLogicalPresentation(display->renderer,
-                                               icon_novideo->w,
-                                               icon_novideo->h,
-                                        SDL_LOGICAL_PRESENTATION_LETTERBOX);
-    if (!ok) {
-        LOGW("Could not set renderer logical size: %s", SDL_GetError());
-        // don't fail
-    }
-
     display->texture = SDL_CreateTextureFromSurface(display->renderer,
                                                     icon_novideo);
     if (!display->texture) {

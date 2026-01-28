@@ -145,12 +145,22 @@ sc_screen_is_relative_mode(struct sc_screen *screen) {
 
 static void
 compute_content_rect(struct sc_size render_size, struct sc_size content_size,
-                     SDL_Rect *rect) {
+                     bool can_upscale, SDL_Rect *rect) {
     if (is_optimal_size(render_size, content_size)) {
         rect->x = 0;
         rect->y = 0;
         rect->w = render_size.width;
         rect->h = render_size.height;
+        return;
+    }
+
+    if (!can_upscale && content_size.width <= render_size.width
+                     && content_size.height <= render_size.height) {
+        // Center without upscaling
+        rect->x = (render_size.width - content_size.width) / 2;
+        rect->y = (render_size.height - content_size.height) / 2;
+        rect->w = content_size.width;
+        rect->h = content_size.height;
         return;
     }
 
@@ -173,11 +183,13 @@ compute_content_rect(struct sc_size render_size, struct sc_size content_size,
 
 static void
 sc_screen_update_content_rect(struct sc_screen *screen) {
-    assert(screen->video);
+    // Only upscale video frames, not icon
+    bool can_upscale = screen->video;
 
     struct sc_size render_size =
         sc_sdl_get_render_output_size(screen->renderer);
-    compute_content_rect(render_size, screen->content_size, &screen->rect);
+    compute_content_rect(render_size, screen->content_size, can_upscale,
+                         &screen->rect);
 }
 
 // render the texture to the renderer
@@ -186,8 +198,7 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
 // changed, so that the content rectangle is recomputed
 static void
 sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
-    assert(screen->video);
-    assert(screen->has_video_window);
+    assert(!screen->video || screen->has_video_window);
 
     if (update_content_rect) {
         sc_screen_update_content_rect(screen);
@@ -240,23 +251,6 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
     }
 
 end:
-    sc_sdl_render_present(renderer);
-}
-
-static void
-sc_screen_render_novideo(struct sc_screen *screen) {
-    SDL_Renderer *renderer = screen->renderer;
-
-    sc_sdl_render_clear(renderer);
-
-    SDL_Texture *texture = screen->display.texture;
-    assert(texture);
-
-    bool ok = SDL_RenderTexture(renderer, texture, NULL, NULL);
-    if (!ok) {
-        LOGE("Could not render texture: %s", SDL_GetError());
-    }
-
     sc_sdl_render_present(renderer);
 }
 
@@ -475,8 +469,17 @@ sc_screen_init(struct sc_screen *screen,
     }
 #endif
 
-    SDL_Surface *icon_novideo = params->video ? NULL : icon;
-    bool mipmaps = params->video && params->mipmaps;
+    SDL_Surface *icon_novideo;
+    bool mipmaps;
+    if (params->video) {
+        icon_novideo = NULL;
+        mipmaps = params->mipmaps;
+    } else {
+        icon_novideo = icon;
+        mipmaps = false;
+        screen->content_size.width = icon->w;
+        screen->content_size.height = icon->h;
+    }
     ok = sc_display_init(&screen->display, screen->renderer, icon_novideo,
                          mipmaps);
     if (icon) {
@@ -874,9 +877,7 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             return true;
         }
         case SDL_EVENT_WINDOW_EXPOSED:
-            if (!screen->video) {
-                sc_screen_render_novideo(screen);
-            } else if (screen->has_video_window) {
+            if (!screen->video || screen->has_video_window) {
                 sc_screen_render(screen, true);
             }
             return true;
