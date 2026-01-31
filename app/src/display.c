@@ -7,24 +7,9 @@
 
 #include "util/log.h"
 
-static bool
-sc_display_init_novideo_icon(struct sc_display *display,
-                             SDL_Surface *icon_novideo) {
-    assert(icon_novideo);
-
-    display->texture = SDL_CreateTextureFromSurface(display->renderer,
-                                                    icon_novideo);
-    if (!display->texture) {
-        LOGE("Could not create texture: %s", SDL_GetError());
-        return false;
-    }
-
-    return true;
-}
-
 bool
 sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
-                SDL_Surface *icon_novideo, bool mipmaps) {
+                bool mipmaps) {
     const char *renderer_name = SDL_GetRendererName(renderer);
     LOGI("Renderer: %s", renderer_name ? renderer_name : "(unknown)");
 
@@ -58,18 +43,6 @@ sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
 
     display->renderer = renderer;
     display->texture = NULL;
-
-    if (icon_novideo) {
-        // Without video, set a static scrcpy icon as window content
-        bool ok = sc_display_init_novideo_icon(display, icon_novideo);
-        if (!ok) {
-#ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
-            SDL_GL_DestroyContext(display->gl_context);
-#endif
-            return false;
-        }
-    }
-
     return true;
 }
 
@@ -219,6 +192,22 @@ sc_display_update_texture(struct sc_display *display, const AVFrame *frame) {
         gl->BindTexture(GL_TEXTURE_2D, display->texture_id);
         gl->GenerateMipmap(GL_TEXTURE_2D);
         gl->BindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    return true;
+}
+
+bool
+sc_display_set_texture_from_surface(struct sc_display *display,
+                                    SDL_Surface *surface) {
+    if (display->texture) {
+        SDL_DestroyTexture(display->texture);
+    }
+
+    display->texture = SDL_CreateTextureFromSurface(display->renderer, surface);
+    if (!display->texture) {
+        LOGE("Could not create texture: %s", SDL_GetError());
+        return false;
     }
 
     return true;

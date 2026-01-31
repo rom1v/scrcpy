@@ -23,7 +23,7 @@ struct sc_display {
 
 bool
 sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
-                SDL_Surface *icon_novideo, bool mipmaps);
+                bool mipmaps);
 
 void
 sc_display_destroy(struct sc_display *display);
@@ -35,5 +35,9 @@ sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
 
 bool
 sc_display_update_texture(struct sc_display *display, const AVFrame *frame);
+
+bool
+sc_display_set_texture_from_surface(struct sc_display *display,
+                                    SDL_Surface *surface);
 
 #endif
