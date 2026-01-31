@@ -462,28 +462,26 @@ sc_screen_init(struct sc_screen *screen,
         if (!SDL_SetWindowIcon(screen->window, icon)) {
             LOGW("Could not set window icon: %s", SDL_GetError());
         }
-    } else if (params->video) {
-        // just a warning
-        LOGW("Could not load icon");
-    } else {
-        // without video, the icon is used as window content, it must be present
-        LOGE("Could not load icon");
-        goto error_destroy_texture;
-    }
 
-    if (!params->video) {
-        assert(icon);
-        screen->content_size.width = icon->w;
-        screen->content_size.height = icon->h;
-        ok = sc_texture_set_from_surface(&screen->tex, icon);
-        if (!ok) {
-            scrcpy_icon_destroy(icon);
-            goto error_destroy_texture;
+        if (!params->video) {
+            screen->content_size.width = icon->w;
+            screen->content_size.height = icon->h;
+            ok = sc_texture_set_from_surface(&screen->tex, icon);
+            if (!ok) {
+                LOGE("Could not set icon: %s", SDL_GetError());
+            }
         }
-    }
 
-    if (icon) {
         scrcpy_icon_destroy(icon);
+    } else {
+        // not fatal
+        LOGE("Could not load icon");
+
+        if (!params->video) {
+            // Make sure the content size is initialized
+            screen->content_size.width = 256;
+            screen->content_size.height = 256;
+        }
     }
 
     screen->frame = av_frame_alloc();
