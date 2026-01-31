@@ -1,4 +1,4 @@
-#include "display.h"
+#include "texture.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -8,17 +8,16 @@
 #include "util/log.h"
 
 bool
-sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
-                bool mipmaps) {
+sc_texture_init(struct sc_texture *tex, SDL_Renderer *renderer, bool mipmaps) {
     const char *renderer_name = SDL_GetRendererName(renderer);
     LOGI("Renderer: %s", renderer_name ? renderer_name : "(unknown)");
 
-    display->mipmaps = false;
+    tex->mipmaps = false;
 
     // starts with "opengl"
     bool use_opengl = renderer_name && !strncmp(renderer_name, "opengl", 6);
     if (use_opengl) {
-        struct sc_opengl *gl = &display->gl;
+        struct sc_opengl *gl = &tex->gl;
         sc_opengl_init(gl);
 
         LOGI("OpenGL version: %s", gl->version);
@@ -29,7 +28,7 @@ sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
                                                2, 0  /* OpenGL ES 2.0+ */);
             if (supports_mipmaps) {
                 LOGI("Trilinear filtering enabled");
-                display->mipmaps = true;
+                tex->mipmaps = true;
             } else {
                 LOGW("Trilinear filtering disabled "
                      "(OpenGL 3.0+ or ES 2.0+ required)");
@@ -41,20 +40,20 @@ sc_display_init(struct sc_display *display, SDL_Renderer *renderer,
         LOGD("Trilinear filtering disabled (not an OpenGL renderer)");
     }
 
-    display->renderer = renderer;
-    display->texture = NULL;
+    tex->renderer = renderer;
+    tex->texture = NULL;
     return true;
 }
 
 void
-sc_display_destroy(struct sc_display *display) {
-    if (display->texture) {
-        SDL_DestroyTexture(display->texture);
+sc_texture_destroy(struct sc_texture *tex) {
+    if (tex->texture) {
+        SDL_DestroyTexture(tex->texture);
     }
 }
 
 static enum SDL_Colorspace
-sc_display_to_sdl_color_space(enum AVColorSpace color_space,
+sc_texture_to_sdl_color_space(enum AVColorSpace color_space,
                               enum AVColorRange color_range) {
     bool full_range = color_range == AVCOL_RANGE_JPEG;
 
@@ -77,7 +76,7 @@ sc_display_to_sdl_color_space(enum AVColorSpace color_space,
 }
 
 static SDL_Texture *
-sc_display_create_frame_texture(struct sc_display *display,
+sc_texture_create_frame_texture(struct sc_texture *tex,
                                 struct sc_size size,
                                 enum AVColorSpace color_space,
                                 enum AVColorRange color_range) {
@@ -87,7 +86,7 @@ sc_display_create_frame_texture(struct sc_display *display,
     }
 
     enum SDL_Colorspace sdl_color_space =
-        sc_display_to_sdl_color_space(color_space, color_range);
+        sc_texture_to_sdl_color_space(color_space, color_range);
 
     bool ok =
         SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER,
@@ -108,7 +107,7 @@ sc_display_create_frame_texture(struct sc_display *display,
         return NULL;
     }
 
-    SDL_Renderer *renderer = display->renderer;
+    SDL_Renderer *renderer = tex->renderer;
     SDL_Texture *texture = SDL_CreateTextureWithProperties(renderer, props);
     SDL_DestroyProperties(props);
     if (!texture) {
@@ -116,8 +115,8 @@ sc_display_create_frame_texture(struct sc_display *display,
         return NULL;
     }
 
-    if (display->mipmaps) {
-        struct sc_opengl *gl = &display->gl;
+    if (tex->mipmaps) {
+        struct sc_opengl *gl = &tex->gl;
 
         SDL_PropertiesID props = SDL_GetTextureProperties(texture);
         if (!props) {
@@ -126,7 +125,7 @@ sc_display_create_frame_texture(struct sc_display *display,
             return NULL;
         }
 
-        const char *renderer_name = SDL_GetRendererName(display->renderer);
+        const char *renderer_name = SDL_GetRendererName(tex->renderer);
         const char *key = !renderer_name || !strcmp(renderer_name, "opengl")
                         ? SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER
                         : SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_NUMBER;
@@ -140,8 +139,8 @@ sc_display_create_frame_texture(struct sc_display *display,
         }
 
         assert(!(texture_id & ~0xFFFFFFFF)); // fits in uint32_t
-        display->texture_id = texture_id;
-        gl->BindTexture(GL_TEXTURE_2D, display->texture_id);
+        tex->texture_id = texture_id;
+        gl->BindTexture(GL_TEXTURE_2D, tex->texture_id);
 
         // Enable trilinear filtering for downscaling
         gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -155,41 +154,39 @@ sc_display_create_frame_texture(struct sc_display *display,
 }
 
 bool
-sc_display_set_texture_from_frame(struct sc_display *display,
-                                  const AVFrame *frame) {
+sc_texture_set_from_frame(struct sc_texture *tex, const AVFrame *frame) {
 
     struct sc_size size = {frame->width, frame->height};
     assert(size.width && size.height);
 
-    if (!display->texture
-            || display->texture_type != SC_TEXTURE_TYPE_FRAME
-            || display->texture_size.width != size.width
-            || display->texture_size.height != size.height) {
+    if (!tex->texture
+            || tex->texture_type != SC_TEXTURE_TYPE_FRAME
+            || tex->texture_size.width != size.width
+            || tex->texture_size.height != size.height) {
         // Incompatible texture, recreate it
         enum AVColorSpace color_space = frame->colorspace;
         enum AVColorRange color_range = frame->color_range;
 
-        if (display->texture) {
-            SDL_DestroyTexture(display->texture);
+        if (tex->texture) {
+            SDL_DestroyTexture(tex->texture);
         }
 
-        display->texture = sc_display_create_frame_texture(display, size,
-                                                           color_space,
-                                                           color_range);
-        if (!display->texture) {
+        tex->texture = sc_texture_create_frame_texture(tex, size, color_space,
+                                                       color_range);
+        if (!tex->texture) {
             return false;
         }
 
-        display->texture_size = size;
-        display->texture_type = SC_TEXTURE_TYPE_FRAME;
+        tex->texture_size = size;
+        tex->texture_type = SC_TEXTURE_TYPE_FRAME;
 
         LOGI("Texture: %" PRIu16 "x%" PRIu16, size.width, size.height);
     }
 
-    assert(display->texture);
-    assert(display->texture_type == SC_TEXTURE_TYPE_FRAME);
+    assert(tex->texture);
+    assert(tex->texture_type == SC_TEXTURE_TYPE_FRAME);
 
-    bool ok = SDL_UpdateYUVTexture(display->texture, NULL,
+    bool ok = SDL_UpdateYUVTexture(tex->texture, NULL,
                                    frame->data[0], frame->linesize[0],
                                    frame->data[1], frame->linesize[1],
                                    frame->data[2], frame->linesize[2]);
@@ -198,11 +195,11 @@ sc_display_set_texture_from_frame(struct sc_display *display,
         return false;
     }
 
-    if (display->mipmaps) {
-        assert(display->texture_id);
-        struct sc_opengl *gl = &display->gl;
+    if (tex->mipmaps) {
+        assert(tex->texture_id);
+        struct sc_opengl *gl = &tex->gl;
 
-        gl->BindTexture(GL_TEXTURE_2D, display->texture_id);
+        gl->BindTexture(GL_TEXTURE_2D, tex->texture_id);
         gl->GenerateMipmap(GL_TEXTURE_2D);
         gl->BindTexture(GL_TEXTURE_2D, 0);
     }
@@ -211,21 +208,20 @@ sc_display_set_texture_from_frame(struct sc_display *display,
 }
 
 bool
-sc_display_set_texture_from_surface(struct sc_display *display,
-                                    SDL_Surface *surface) {
-    if (display->texture) {
-        SDL_DestroyTexture(display->texture);
+sc_texture_set_from_surface(struct sc_texture *tex, SDL_Surface *surface) {
+    if (tex->texture) {
+        SDL_DestroyTexture(tex->texture);
     }
 
-    display->texture = SDL_CreateTextureFromSurface(display->renderer, surface);
-    if (!display->texture) {
+    tex->texture = SDL_CreateTextureFromSurface(tex->renderer, surface);
+    if (!tex->texture) {
         LOGE("Could not create texture: %s", SDL_GetError());
         return false;
     }
 
-    display->texture_size.width = surface->w;
-    display->texture_size.height = surface->h;
-    display->texture_type = SC_TEXTURE_TYPE_ICON;
+    tex->texture_size.width = surface->w;
+    tex->texture_size.height = surface->h;
+    tex->texture_type = SC_TEXTURE_TYPE_ICON;
 
     return true;
 }

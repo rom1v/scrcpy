@@ -208,7 +208,7 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
     sc_sdl_render_clear(renderer);
 
     bool ok = false;
-    SDL_Texture *texture = screen->display.texture;
+    SDL_Texture *texture = screen->tex.texture;
     if (!texture) {
         LOGW("No texture to render");
         goto end;
@@ -446,7 +446,7 @@ sc_screen_init(struct sc_screen *screen,
 #endif
 
     bool mipmaps = params->video;
-    ok = sc_display_init(&screen->display, screen->renderer, mipmaps);
+    ok = sc_texture_init(&screen->tex, screen->renderer, mipmaps);
     if (!ok) {
         goto error_destroy_renderer;
     }
@@ -454,7 +454,7 @@ sc_screen_init(struct sc_screen *screen,
     ok = SDL_StartTextInput(screen->window);
     if (!ok) {
         LOGE("Could not enable text input: %s", SDL_GetError());
-        goto error_destroy_display;
+        goto error_destroy_texture;
     }
 
     SDL_Surface *icon = scrcpy_icon_load();
@@ -468,17 +468,17 @@ sc_screen_init(struct sc_screen *screen,
     } else {
         // without video, the icon is used as window content, it must be present
         LOGE("Could not load icon");
-        goto error_destroy_display;
+        goto error_destroy_texture;
     }
 
     if (!params->video) {
         assert(icon);
         screen->content_size.width = icon->w;
         screen->content_size.height = icon->h;
-        ok = sc_display_set_texture_from_surface(&screen->display, icon);
+        ok = sc_texture_set_from_surface(&screen->tex, icon);
         if (!ok) {
             scrcpy_icon_destroy(icon);
-            goto error_destroy_display;
+            goto error_destroy_texture;
         }
     }
 
@@ -489,7 +489,7 @@ sc_screen_init(struct sc_screen *screen,
     screen->frame = av_frame_alloc();
     if (!screen->frame) {
         LOG_OOM();
-        goto error_destroy_display;
+        goto error_destroy_texture;
     }
 
     struct sc_input_manager_params im_params = {
@@ -545,8 +545,8 @@ sc_screen_init(struct sc_screen *screen,
 
     return true;
 
-error_destroy_display:
-    sc_display_destroy(&screen->display);
+error_destroy_texture:
+    sc_texture_destroy(&screen->tex);
 error_destroy_renderer:
 #ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
     if (screen->gl_context) {
@@ -615,7 +615,7 @@ sc_screen_destroy(struct sc_screen *screen) {
 #ifndef NDEBUG
     assert(!screen->open);
 #endif
-    sc_display_destroy(&screen->display);
+    sc_texture_destroy(&screen->tex);
     av_frame_free(&screen->frame);
 #ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
     SDL_GL_DestroyContext(screen->gl_context);
@@ -719,7 +719,7 @@ sc_screen_apply_frame(struct sc_screen *screen) {
         }
     }
 
-    bool ok = sc_display_set_texture_from_frame(&screen->display, frame);
+    bool ok = sc_texture_set_from_frame(&screen->tex, frame);
     if (!ok) {
         return false;
     }
