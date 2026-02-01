@@ -31,23 +31,33 @@ sc_usb_on_disconnected(struct sc_usb *usb, void *userdata) {
     (void) usb;
     (void) userdata;
 
-    sc_push_event(SC_EVENT_USB_DEVICE_DISCONNECTED);
+    sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
 }
 
 static enum scrcpy_exit_code
-event_loop(struct scrcpy_otg *s) {
+event_loop(struct scrcpy_otg *s, bool disconnected) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
-            case SC_EVENT_USB_DEVICE_DISCONNECTED:
+            case SC_EVENT_DEVICE_DISCONNECTED:
+                if (disconnected) {
+                    break;
+                }
                 LOGW("Device disconnected");
+                sc_screen_handle_event(&s->screen, &event);
                 return SCRCPY_EXIT_DISCONNECTED;
             case SC_EVENT_AOA_OPEN_ERROR:
+                if (disconnected) {
+                    break;
+                }
                 LOGE("AOA open error");
                 return SCRCPY_EXIT_FAILURE;
             case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
                 return SCRCPY_EXIT_SUCCESS;
+            case SC_EVENT_DISCONNECTED_TIMEOUT:
+                LOGD("Closing after device disconnection");
+                return SCRCPY_EXIT_DISCONNECTED;
             default:
                 sc_screen_handle_event(&s->screen, &event);
                 break;
@@ -96,6 +106,7 @@ scrcpy_otg(struct scrcpy_options *options) {
     bool aoa_started = false;
     bool aoa_initialized = false;
     bool screen_initialized = false;
+    bool disconnected = false;
 
 #ifdef _WIN32
     // On Windows, only one process could open a USB device
@@ -220,8 +231,8 @@ scrcpy_otg(struct scrcpy_options *options) {
     sc_usb_device_destroy(&usb_device);
     usb_device_initialized = false;
 
-    ret = event_loop(s);
-    LOGD("quit...");
+    ret = event_loop(s, false);
+    disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
 
 end:
     if (aoa_started) {
@@ -231,6 +242,15 @@ end:
 
     if (screen_initialized) {
         sc_screen_interrupt(&s->screen);
+
+        if (disconnected) {
+            ret = event_loop(s, true);
+            sc_screen_interrupt_disconnect(&s->screen);
+        }
+        LOGD("Quit...");
+
+        // Close the window immediately
+        sc_screen_hide_window(&s->screen);
     }
 
     if (mp) {

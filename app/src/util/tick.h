@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 typedef int64_t sc_tick;
+#define SC_TICK_NONE INT64_MIN
 #define PRItick PRIi64
 #define SC_TICK_FREQ 1000000 // microsecond
 

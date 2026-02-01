@@ -12,6 +12,7 @@
 
 #include "controller.h"
 #include "coords.h"
+#include "disconnect.h"
 #include "fps_counter.h"
 #include "frame_buffer.h"
 #include "input_manager.h"
@@ -77,6 +78,10 @@ struct sc_screen {
 
     bool paused;
     AVFrame *resume_frame;
+
+    bool disconnected;
+    bool disconnect_started;
+    struct sc_disconnect disconnect;
 };
 
 struct sc_screen_params {
@@ -116,9 +121,14 @@ bool
 sc_screen_init(struct sc_screen *screen, const struct sc_screen_params *params);
 
 // request to interrupt any inner thread
-// must be called before screen_join()
+// must be called before sc_screen_join()
 void
 sc_screen_interrupt(struct sc_screen *screen);
+
+// request to interrupt the disconnected state (before closing the window)
+// must be called before sc_screen_join();
+void
+sc_screen_interrupt_disconnect(struct sc_screen *screen);
 
 // join any inner thread
 void
