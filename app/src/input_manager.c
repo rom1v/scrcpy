@@ -16,8 +16,6 @@
 void
 sc_input_manager_init(struct sc_input_manager *im,
                       const struct sc_input_manager_params *params) {
-    // A key/mouse processor may not be present if there is no controller
-    assert((!params->kp && !params->mp && !params->gp) || params->controller);
     // A processor must have ops initialized
     assert(!params->kp || params->kp->ops);
     assert(!params->mp || params->mp->ops);

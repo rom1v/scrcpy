@@ -104,7 +104,6 @@ if usb_support
         'src/usb/keyboard_aoa.c',
         'src/usb/mouse_aoa.c',
         'src/usb/scrcpy_otg.c',
-        'src/usb/screen_otg.c',
         'src/usb/usb.c',
     ]
 endif
