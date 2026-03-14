@@ -18,6 +18,7 @@ then
 else
     get_file "$URL" "$FILENAME" "$SHA256SUM"
     tar xf "$FILENAME"  # First level directory is "$PROJECT_DIR"
+    patch -d "$PROJECT_DIR" -p1 < "$PATCHES_DIR"/FFmpeg-lavc-avoid-denormalized-floats.patch
 fi
 
 mkdir -p "$BUILD_DIR/$PROJECT_DIR"

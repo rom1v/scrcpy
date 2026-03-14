@@ -1,0 +1,26 @@
+From a3fb79f896b69de60dbd2a00bbd7f1aa88326c6a Mon Sep 17 00:00:00 2001
+From: Anton Khirnov <anton@khirnov.net>
+Date: Sat, 14 Mar 2026 22:26:44 +0100
+Subject: [PATCH] lavc: avoid denormalized floats
+
+Fixes https://github.com/Genymobile/scrcpy/issues/6715
+---
+ libavcodec/opus/dec_celt.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libavcodec/opus/dec_celt.c b/libavcodec/opus/dec_celt.c
+index 3feb4a4e47..a43d63d9db 100644
+--- a/libavcodec/opus/dec_celt.c
++++ b/libavcodec/opus/dec_celt.c
+@@ -463,6 +463,8 @@ int ff_celt_decode_frame(CeltFrame *f, OpusRangeCoder *rc,
+                                                   block->emph_coeff,
+                                                   ff_opus_deemph_weights,
+                                                   frame_size);
++        if (!isnormal(block->emph_coeff))
++            block->emph_coeff = 0.0;
+     }
+ 
+     if (channels == 1)
+-- 
+2.53.0
+
