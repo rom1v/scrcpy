@@ -13,6 +13,10 @@ This application mirrors Android devices (video and audio) connected via USB or
 computer's keyboard and mouse. It does not require _root_ access or an app
 installed on the device. It works on _Linux_, _Windows_, and _macOS_.
 
+[![Linux](https://img.shields.io/badge/Linux-download-orange?style=for-the-badge&logo=linux)](doc/linux.md)&nbsp;
+[![Windows](https://img.shields.io/badge/Windows-download-blue?style=for-the-badge&logo=windows)](doc/windows.md)&nbsp;
+[![macOS](https://img.shields.io/badge/macOS-download-brightgreen?style=for-the-badge&logo=apple)](doc/macos.md)&nbsp;
+
 ![screenshot](assets/screenshot-debian-600.jpg)
 
 It focuses on:
