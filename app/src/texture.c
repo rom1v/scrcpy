@@ -57,6 +57,7 @@ sc_texture_to_sdl_color_space(enum AVColorSpace color_space,
                               enum AVColorRange color_range) {
     bool full_range = color_range == AVCOL_RANGE_JPEG;
 
+    LOGI("color_space=%d color_range=%d", color_space, color_range);
     switch (color_space) {
         case AVCOL_SPC_BT709:
         case AVCOL_SPC_RGB:
