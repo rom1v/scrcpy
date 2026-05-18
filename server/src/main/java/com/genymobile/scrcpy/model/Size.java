@@ -52,6 +52,38 @@ public final class Size {
         int major = landscape ? width : height;
         int minor = landscape ? height : width;
 
+        if (caps == null) {
+            if (maxSize == 0) {
+                // No constraints
+                return this;
+            }
+
+            assert maxSize > 0;
+            int w, h;
+            if (preserveAspectRatio) {
+                if (width > maxSize || height > maxSize) {
+                    if (width > height) {
+                        w = maxSize;
+                        h = height * maxSize / width;
+                    } else {
+                        w = width * maxSize / height;
+                        h = maxSize;
+                    }
+                } else {
+                    w = width;
+                    h = height;
+                }
+            } else {
+                w = Math.min(width, maxSize);
+                h = Math.min(height, maxSize);
+            }
+
+            w = align(w, alignment);
+            h = align(h, alignment);
+
+            return new Size(w, h);
+        }
+
         Range<Integer> majorRange = landscape ? caps.getSupportedWidths() : caps.getSupportedHeights();
         int minMajor = majorRange.getLower();
         int maxMajor = majorRange.getUpper();
