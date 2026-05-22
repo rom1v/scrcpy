@@ -94,6 +94,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         if (!ignoreVideoEncoderConstraints) {
             caps = mediaCodec.getCodecInfo().getCapabilitiesForType(codec.getMimeType()).getVideoCapabilities();
             assert caps != null; // caps cannot be null for a video codec
+            Ln.i("==== " + caps.getSupportedWidths() + " " + caps.getSupportedHeights());
         } else {
             caps = null;
         }
