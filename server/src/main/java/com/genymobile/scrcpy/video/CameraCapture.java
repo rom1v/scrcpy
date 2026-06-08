@@ -135,6 +135,7 @@ public class CameraCapture extends SurfaceCapture {
             if (captureSize == null) {
                 throw new IOException("Could not select camera size");
             }
+            Ln.i("=== Selected capture size: " + captureSize);
         } catch (CameraAccessException e) {
             throw new IOException(e);
         }
