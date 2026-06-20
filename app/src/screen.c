@@ -406,8 +406,12 @@ sc_screen_frame_sink_open(struct sc_frame_sink *sink,
     // a synchronization point) when video is enabled
     screen->frame_size.width = session->video.width;
     screen->frame_size.height = session->video.height;
+    LOGI("=== [frame_sink_open] frame_size=%" PRIu32 "x%" PRIu32,
+         session->video.width, session->video.height);
     screen->content_size = get_oriented_size(screen->frame_size,
                                              screen->orientation);
+    LOGI("=== [frame_sink_open] content_size=%" PRIu32 "x%" PRIu32,
+         screen->content_size.width, screen->content_size.height);
 
     screen->current_session = *session;
 
@@ -762,6 +766,9 @@ sc_screen_show_initial_window(struct sc_screen *screen) {
 
     screen->window_shown = true;
     sc_sdl_show_window(screen->window);
+
+    LOGI("=== [show_initial_window] content_size=%" PRIu32 "x%" PRIu32,
+         screen->content_size.width, screen->content_size.height);
     sc_screen_update_content_rect(screen);
 }
 
