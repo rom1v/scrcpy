@@ -411,6 +411,8 @@ sc_screen_frame_sink_open(struct sc_frame_sink *sink,
 
     screen->current_session = *session;
 
+    atomic_thread_fence(memory_order_seq_cst);
+
     bool ok = sc_push_event(SC_EVENT_OPEN_WINDOW);
     if (!ok) {
         return false;
@@ -726,6 +728,8 @@ error_destroy_mutex:
 
 static void
 sc_screen_show_initial_window(struct sc_screen *screen) {
+    atomic_thread_fence(memory_order_seq_cst);
+
     int x = screen->req.x != SC_WINDOW_POSITION_UNDEFINED
           ? screen->req.x : (int) SDL_WINDOWPOS_CENTERED;
     int y = screen->req.y != SC_WINDOW_POSITION_UNDEFINED
