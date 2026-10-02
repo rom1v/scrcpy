@@ -31,12 +31,6 @@ cd .. # root project dir
 
 WINXX_BUILD_DIR="$WORK_DIR/build-$WINXX"
 
-# Prefer Ninja for CMake-based deps on MSYS2 (avoids "MSYS Makefiles" quirks)
-if [[ "$BUILD_TYPE" == native ]]
-then
-    export CMAKE_GENERATOR=Ninja
-fi
-
 app/deps/adb_windows.sh
 app/deps/sdl.sh $WINXX $BUILD_TYPE shared
 app/deps/dav1d.sh $WINXX $BUILD_TYPE shared
