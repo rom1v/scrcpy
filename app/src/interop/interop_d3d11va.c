@@ -14,6 +14,65 @@
 #define DOWNCAST(INTEROP) \
     container_of(INTEROP, struct sc_interop_d3d11va, interop)
 
+static const char *
+sc_d3d11_get_removed_reason_name(HRESULT reason) {
+    switch (reason) {
+        case S_OK:
+            return "none";
+        case DXGI_ERROR_DEVICE_HUNG:
+            return "DEVICE_HUNG";
+        case DXGI_ERROR_DEVICE_REMOVED:
+            return "DEVICE_REMOVED";
+        case DXGI_ERROR_DEVICE_RESET:
+            return "DEVICE_RESET";
+        case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
+            return "DRIVER_INTERNAL_ERROR";
+        case DXGI_ERROR_INVALID_CALL:
+            return "INVALID_CALL";
+        default:
+            return "unknown";
+    }
+}
+
+// Return S_OK if the device has not been removed
+static HRESULT
+sc_interop_d3d11va_get_removed_reason(struct sc_interop_d3d11va *d3d11va) {
+    // The device of the interop context is the one shared with the decoder
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext_GetDevice(d3d11va->device_ctx, &device);
+    if (!device) {
+        return S_OK;
+    }
+
+    HRESULT reason = ID3D11Device_GetDeviceRemovedReason(device);
+    ID3D11Device_Release(device);
+    return reason;
+}
+
+static void
+sc_interop_d3d11va_log_removed_reason(struct sc_interop_d3d11va *d3d11va,
+                                      const char *context) {
+    HRESULT reason = sc_interop_d3d11va_get_removed_reason(d3d11va);
+    LOGE("D3D11VA: %s, device removed reason: %s (%#lx)", context,
+         sc_d3d11_get_removed_reason_name(reason), (unsigned long) reason);
+}
+
+// Called synchronously by SDL when it reports that the device of the renderer
+// has been lost or reset (before the application could crash on the dead
+// device)
+static bool
+sc_interop_d3d11va_event_watcher(void *data, SDL_Event *event) {
+    struct sc_interop_d3d11va *d3d11va = data;
+
+    if (event->type == SDL_EVENT_RENDER_DEVICE_RESET) {
+        sc_interop_d3d11va_log_removed_reason(d3d11va, "render device reset");
+    } else if (event->type == SDL_EVENT_RENDER_DEVICE_LOST) {
+        sc_interop_d3d11va_log_removed_reason(d3d11va, "render device lost");
+    }
+
+    return true;
+}
+
 static void
 sc_interop_d3d11va_reset(struct sc_interop *interop) {
     if (interop->texture) {
@@ -25,6 +84,7 @@ sc_interop_d3d11va_reset(struct sc_interop *interop) {
 static void
 sc_interop_d3d11va_destroy(struct sc_interop *interop) {
     struct sc_interop_d3d11va *d3d11va = DOWNCAST(interop);
+    SDL_RemoveEventWatch(sc_interop_d3d11va_event_watcher, d3d11va);
     if (interop->texture) {
         SDL_DestroyTexture(interop->texture);
     }
@@ -82,6 +142,14 @@ sc_interop_d3d11va_import(struct sc_interop *interop, const AVFrame *frame) {
 
     assert(frame->format == AV_PIX_FMT_D3D11);
     assert(frame->hw_frames_ctx);
+
+    // Detect a removed device as early as possible (the decoder may have
+    // triggered it), and do not use it anymore
+    HRESULT reason = sc_interop_d3d11va_get_removed_reason(d3d11va);
+    if (reason != S_OK) {
+        sc_interop_d3d11va_log_removed_reason(d3d11va, "cannot import frame");
+        return false;
+    }
 
     const AVHWFramesContext *frames =
         (const AVHWFramesContext *) frame->hw_frames_ctx->data;
@@ -195,6 +263,10 @@ sc_interop_d3d11va_new(SDL_Renderer *renderer) {
 
     d3d11va->renderer = renderer;
     d3d11va->device_ctx = device_ctx;
+
+    if (!SDL_AddEventWatch(sc_interop_d3d11va_event_watcher, d3d11va)) {
+        LOGW("Could not watch device events: %s", SDL_GetError());
+    }
 
     return d3d11va;
 }
